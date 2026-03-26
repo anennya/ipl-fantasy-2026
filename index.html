@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>🏏 IPL Predictor 2026</title>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
+  <style>
+    :root {
+      --orange: #FF6B00; --orange-light: #FF8C33; --gold: #FFD700;
+      --dark: #0A0A15; --dark2: #141428; --dark3: #1E1E3A;
+      --border: #2A2A4A; --text: #E8E8F8; --muted: #8888AA;
+      --green: #00D68F; --red: #FF4D4D; --radius: 16px; --sm: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--dark); color: var(--text); min-height: 100vh; max-width: 480px; margin: 0 auto; }
+    #root { padding-bottom: 72px; min-height: 100vh; }
+
+    /* Header */
+    .hdr { background: linear-gradient(135deg, #0A0A15, #1a0a30); padding: 14px 18px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; }
+    .hdr-title { font-size: 17px; font-weight: 800; }
+    .hdr-badge { background: var(--orange); color: #fff; font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 20px; letter-spacing: 0.05em; }
+
+    /* Nav */
+    .nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--dark2); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 9px 4px 7px; cursor: pointer; border: none; background: none; color: var(--muted); font-size: 10px; gap: 3px; transition: color 0.2s; }
+    .nav-btn .ic { font-size: 21px; }
+    .nav-btn.active { color: var(--orange); }
+
+    /* Cards */
+    .card { background: var(--dark2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 12px 16px; }
+    .ct { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 10px; font-weight: 700; }
+
+    /* Match card */
+    .mc { background: linear-gradient(135deg, #141428, #1a1040); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 16px; margin: 12px 16px; text-align: center; }
+    .mc-teams { display: flex; align-items: center; justify-content: space-between; margin: 14px 0; }
+    .mc-team { display: flex; flex-direction: column; align-items: center; gap: 7px; flex: 1; }
+    .tbadge { width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: #fff; margin: 0 auto; }
+    .tname { font-size: 14px; font-weight: 700; }
+    .vs { font-size: 13px; color: var(--muted); font-weight: 800; padding: 0 10px; }
+    .mm { display: flex; gap: 12px; justify-content: center; font-size: 12px; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+
+    /* Countdown */
+    .cd { background: linear-gradient(135deg, var(--orange), #ff8c33); border-radius: var(--sm); padding: 12px 16px; text-align: center; margin: 0 16px 12px; }
+    .cd-lbl { font-size: 11px; opacity: 0.85; margin-bottom: 2px; }
+    .cd-time { font-size: 26px; font-weight: 900; letter-spacing: 2px; }
+
+    /* Buttons */
+    .btn { padding: 13px 22px; border-radius: var(--sm); border: none; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 0.1s, opacity 0.2s; display: block; width: 100%; text-align: center; }
+    .btn:active { transform: scale(0.97); }
+    .btn-p { background: linear-gradient(135deg, var(--orange), var(--orange-light)); color: #fff; }
+    .btn-s { background: var(--dark3); color: var(--text); border: 1px solid var(--border); }
+    .btn-sm { padding: 7px 14px; font-size: 12px; display: inline-block; width: auto; border-radius: 20px; }
+
+    /* Form */
+    .fg { margin-bottom: 14px; }
+    .fl { font-size: 12px; color: var(--muted); margin-bottom: 5px; display: block; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .fi { width: 100%; background: var(--dark3); border: 1px solid var(--border); border-radius: var(--sm); color: var(--text); padding: 11px 13px; font-size: 15px; outline: none; transition: border-color 0.2s; }
+    .fi:focus { border-color: var(--orange); }
+    select.fi { appearance: none; }
+
+    /* Team picker */
+    .tpicker { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0; }
+    .toption { border: 2px solid var(--border); border-radius: var(--sm); padding: 14px 8px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--dark3); }
+    .toption.sel { border-color: var(--orange); background: rgba(255,107,0,0.15); }
+    .toption:active { transform: scale(0.96); }
+
+    /* Leaderboard */
+    .lbi { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .lbi:last-child { border-bottom: none; }
+    .lbr { width: 28px; font-size: 15px; font-weight: 800; color: var(--muted); }
+    .lbr.gold { color: var(--gold); }
+    .av { width: 40px; height: 40px; border-radius: 50%; background: var(--orange); display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; margin-right: 11px; color: #fff; flex-shrink: 0; }
+    .lbpts { font-size: 22px; font-weight: 900; color: var(--orange); }
+
+    /* Chat */
+    .chat-wrap { max-height: 320px; overflow-y: auto; padding: 8px 0; display: flex; flex-direction: column; gap: 10px; }
+    .cm { max-width: 88%; }
+    .cm.user { align-self: flex-end; }
+    .cm.bot { align-self: flex-start; }
+    .cb { padding: 10px 13px; border-radius: 16px; font-size: 13px; line-height: 1.55; }
+    .cm.user .cb { background: var(--orange); color: #fff; border-bottom-right-radius: 4px; }
+    .cm.bot .cb { background: var(--dark3); border: 1px solid var(--border); border-bottom-left-radius: 4px; white-space: pre-wrap; }
+    .ci-row { display: flex; gap: 8px; margin-top: 10px; }
+    .ci-row .fi { flex: 1; }
+    .csend { background: var(--orange); border: none; border-radius: var(--sm); color: #fff; font-size: 18px; width: 46px; cursor: pointer; flex-shrink: 0; border-radius: var(--sm); }
+
+    /* Pitch bars */
+    .ps { display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .ps:last-child { border-bottom: none; }
+    .pbw { flex: 1; height: 7px; background: var(--dark3); border-radius: 4px; margin: 0 10px; overflow: hidden; }
+    .pb { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--orange), var(--gold)); }
+
+    /* Splash */
+    .splash { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; text-align: center; }
+    .splash-logo { font-size: 60px; margin-bottom: 12px; }
+    .splash-title { font-size: 26px; font-weight: 900; background: linear-gradient(135deg, var(--orange), var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+    .splash-sub { color: var(--muted); font-size: 14px; margin-bottom: 28px; line-height: 1.6; }
+
+    /* Badges */
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .bg-g { background: rgba(0,214,143,0.15); color: var(--green); }
+    .bg-o { background: rgba(255,107,0,0.15); color: var(--orange); }
+    .bg-m { background: var(--dark3); color: var(--muted); }
+
+    /* Misc */
+    .sh { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 4px; }
+    .sh h2 { font-size: 17px; font-weight: 800; }
+    .divider { height: 1px; background: var(--border); margin: 12px 16px; }
+    .empty { text-align: center; padding: 32px; color: var(--muted); }
+    .empty .ei { font-size: 40px; display: block; margin-bottom: 10px; }
+    .toast { position: fixed; bottom: 82px; left: 50%; transform: translateX(-50%); background: #2A2A4A; border: 1px solid var(--border); color: var(--text); padding: 11px 20px; border-radius: 24px; font-size: 13px; font-weight: 700; z-index: 999; animation: tin 0.3s ease; white-space: nowrap; }
+    @keyframes tin { from { opacity:0; transform:translateX(-50%) translateY(8px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+    .pts-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+    .pts-row:last-child { border-bottom: none; }
+    .pts-v { color: var(--green); font-weight: 700; }
+    .admin-box { background: rgba(255,107,0,0.08); border: 1px solid rgba(255,107,0,0.25); border-radius: var(--radius); padding: 16px; margin: 12px 16px; }
+    .api-box { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.2); border-radius: var(--sm); padding: 12px; margin-bottom: 14px; }
+    .mrc { background: var(--dark3); border-radius: var(--sm); padding: 12px; margin-bottom: 8px; }
+    .mrc-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    a.btn { text-decoration: none; display: block; }
+    .quick-btns { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// ================================================================
+// DATA
+// ================================================================
+const TEAMS = {
+  RCB:  { name:"Royal Challengers Bengaluru", color:"#EC1C24", bg:"#2a0505" },
+  SRH:  { name:"Sunrisers Hyderabad",         color:"#FF822A", bg:"#2a1500" },
+  MI:   { name:"Mumbai Indians",              color:"#004BA0", bg:"#00122a" },
+  KKR:  { name:"Kolkata Knight Riders",       color:"#9B59B6", bg:"#1e0a2a" },
+  RR:   { name:"Rajasthan Royals",            color:"#E91E8C", bg:"#2a0019" },
+  CSK:  { name:"Chennai Super Kings",         color:"#FDB913", bg:"#2a2000" },
+  PBKS: { name:"Punjab Kings",                color:"#ED1B24", bg:"#2a0505" },
+  GT:   { name:"Gujarat Titans",              color:"#1BA9C5", bg:"#001a20" },
+  LSG:  { name:"Lucknow Super Giants",        color:"#4CB8D4", bg:"#001a20" },
+  DC:   { name:"Delhi Capitals",              color:"#0078BC", bg:"#00132a" },
+};
+
+const MATCHES = [
+  { id:"m1",  no:1,  date:"2026-03-28", time:"19:30", team1:"RCB",  team2:"SRH",  venue:"M. Chinnaswamy Stadium",             city:"Bengaluru" },
+  { id:"m2",  no:2,  date:"2026-03-29", time:"19:30", team1:"MI",   team2:"KKR",  venue:"Wankhede Stadium",                   city:"Mumbai" },
+  { id:"m3",  no:3,  date:"2026-03-30", time:"19:30", team1:"RR",   team2:"CSK",  venue:"Barsapara Cricket Stadium",          city:"Guwahati" },
+  { id:"m4",  no:4,  date:"2026-03-31", time:"19:30", team1:"PBKS", team2:"GT",   venue:"Maharaja Yadavindra Singh Stadium",  city:"Mullanpur" },
+  { id:"m5",  no:5,  date:"2026-04-01", time:"19:30", team1:"LSG",  team2:"DC",   venue:"Ekana Cricket Stadium",              city:"Lucknow" },
+  { id:"m6",  no:6,  date:"2026-04-02", time:"19:30", team1:"KKR",  team2:"SRH",  venue:"Eden Gardens",                      city:"Kolkata" },
+];
+
+const PITCH = {
+  "Bengaluru": { bat:85, bowl:60, spin:55, pace:65, dew:70,  note:"High-scoring ground with short boundaries. Dew heavily favours the chasing side at night." },
+  "Mumbai":    { bat:75, bowl:70, spin:50, pace:75, dew:65,  note:"Balanced pitch. Sea breeze aids early swing. Dew factor significant in second innings." },
+  "Guwahati":  { bat:60, bowl:80, spin:82, pace:52, dew:30,  note:"Spin-friendly, slow surface. Low-scoring games typical. Home comfort for wrist spinners." },
+  "Mullanpur": { bat:70, bowl:72, spin:45, pace:80, dew:50,  note:"New stadium with hard pitches. Pacers extract bounce early. Pitch settles for batters later." },
+  "Lucknow":   { bat:58, bowl:82, spin:88, pace:58, dew:38,  note:"One of the slowest IPL pitches. Spinners dominate. Batting gets progressively harder." },
+  "Kolkata":   { bat:74, bowl:72, spin:60, pace:76, dew:65,  note:"Iconic venue. Seamers effective early morning; pitch eases later. Evening dew is significant." },
+};
+
+const CHAT_CONTEXT = {
+  role:"system",
+  content:`You are an expert IPL cricket analyst with deep knowledge of the 2026 IPL season. You give concise, insightful, and practical analysis about match conditions, team strategies, player form, and predictions. Keep responses under 180 words. Be specific and use cricket terminology. Sound like a knowledgeable fan — engaging and confident, not robotic.`
+};
+
+// ================================================================
+// STATE
+// ================================================================
+let db = null, currentUser = null, currentView = "home";
+let participants = {}, predictions = {}, results = {}, chatHistory = [];
+let isAdmin = false, selectedTeam = null, countdownInterval = null;
+
+// ================================================================
+// LOCAL STORAGE
+// ================================================================
+const LS = {
+  get: k => { try { return JSON.parse(localStorage.getItem("ipl26_"+k)); } catch(e){ return null; } },
+  set: (k,v) => { try { localStorage.setItem("ipl26_"+k, JSON.stringify(v)); } catch(e){} },
+  del: k => localStorage.removeItem("ipl26_"+k),
+};
+
+// ================================================================
+// FIREBASE
+// ================================================================
+function initFirebase(config) {
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(config);
+    db = firebase.database();
+    db.ref("participants").on("value", s => { participants = s.val()||{}; safeRender(); });
+    db.ref("predictions").on("value", s => { predictions = s.val()||{}; safeRender(); });
+    db.ref("results").on("value",     s => { results = s.val()||{}; safeRender(); });
+    return true;
+  } catch(e) { console.error(e); return false; }
+}
+
+function fbSet(path, val) {
+  if (db) return db.ref(path).set(val);
+  // Demo mode: update local state
+  const parts = path.split("/");
+  let obj = window._demoState || (window._demoState = {});
+  for (let i = 0; i < parts.length-1; i++) { obj[parts[i]] = obj[parts[i]]||{}; obj = obj[parts[i]]; }
+  obj[parts[parts.length-1]] = val;
+  if (path.startsWith("predictions/")) {
+    const [,matchId,userId] = parts;
+    if (!predictions[matchId]) predictions[matchId] = {};
+    predictions[matchId][userId] = val;
+  } else if (path.startsWith("results/")) {
+    const [,matchId] = parts;
+    results[matchId] = val;
+  } else if (path.startsWith("participants/")) {
+    const [,uid] = parts;
+    participants[uid] = val;
+  }
+  return Promise.resolve();
+}
+
+function fbDel(path) {
+  if (db) return db.ref(path).remove();
+  const parts = path.split("/");
+  if (path.startsWith("predictions/")) {
+    const [,matchId,userId] = parts;
+    if (predictions[matchId]) delete predictions[matchId][userId];
+  }
+  return Promise.resolve();
+}
+
+// ================================================================
+// UTILITIES
+// ================================================================
+function getNextMatch() {
+  const now = new Date();
+  for (const m of MATCHES) {
+    const dt = new Date(m.date+"T"+m.time+":00+05:30");
+    if (dt > now) return m;
+  }
+  return MATCHES[MATCHES.length-1];
+}
+function getMatch(id) { return MATCHES.find(m=>m.id===id); }
+function fmtDate(d) { return new Date(d+"T00:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"}); }
+function fmtCD(dt) {
+  const diff = dt - new Date();
+  if (diff <= 0) return "LIVE NOW 🔴";
+  const d=Math.floor(diff/86400000), h=Math.floor((diff%86400000)/3600000),
+        m=Math.floor((diff%3600000)/60000), s=Math.floor((diff%60000)/1000);
+  if (d>0) return `${d}d ${h}h ${m}m`;
+  if (h>0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
+}
+function toast(msg, dur=2800) {
+  document.querySelector(".toast")?.remove();
+  const t=document.createElement("div"); t.className="toast"; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(), dur);
+}
+function deadlinePast(m) { return new Date() > new Date(m.date+"T"+m.time+":00+05:30"); }
+function calcPts(uid) {
+  let total=0, breakdown=[];
+  for (const [mid, res] of Object.entries(results)) {
+    const pred = (predictions[mid]||{})[uid]; if (!pred) continue;
+    const m = getMatch(mid); if (!m) continue;
+    let pts=0, det=[];
+    if (pred.winner===res.winner)                        { pts+=3; det.push("✅ Winner +3"); }   else det.push("❌ Winner +0");
+    if (pred.topBat && res.topBat && pred.topBat.trim().toLowerCase()===res.topBat.trim().toLowerCase())   { pts+=2; det.push("✅ Batter +2"); }  else det.push("❌ Batter +0");
+    if (pred.topBwl && res.topBwl && pred.topBwl.trim().toLowerCase()===res.topBwl.trim().toLowerCase())   { pts+=2; det.push("✅ Bowler +2"); }  else det.push("❌ Bowler +0");
+    total+=pts; breakdown.push({mid,m,pts,det});
+  }
+  return {total,breakdown};
+}
+function leaderboard() {
+  return Object.entries(participants)
+    .map(([uid,u]) => ({uid, name:u.name, ...calcPts(uid)}))
+    .sort((a,b) => b.total-a.total);
+}
+
+// ================================================================
+// RENDER HELPERS
+// ================================================================
+function safeRender() {
+  if (currentView && !["setup","login"].includes(currentView)) renderView();
+}
+function $root(html) { document.getElementById("root").innerHTML=html; }
+
+function wrapApp(content) {
+  return `
+    ${content}
+    <nav class="nav">
+      ${[["home","🏠","Home"],["predict","🎯","Predict"],["lb","🏆","Standings"],["insights","🧠","Insights"],["settings","⚙️","Settings"]]
+        .map(([v,i,l]) => `<button class="nav-btn${currentView===v?" active":""}" onclick="go('${v}')"><span class="ic">${i}</span>${l}</button>`).join("")}
+    </nav>`;
+}
+
+// ================================================================
+// SETUP VIEW
+// ================================================================
+function renderSetup() {
+  const c = LS.get("fbConfig")||{};
+  $root(`<div class="splash">
+    <div class="splash-logo">🏏</div>
+    <div class="splash-title">IPL Predictor 2026</div>
+    <div class="splash-sub">Predict winners, track your group's form, and follow every match — no money, just bragging rights.</div>
+    <div style="width:100%;text-align:left;">
+      <div class="card" style="margin:0 0 12px;">
+        <div class="ct">🔥 Connect Firebase (Free, 5 min setup)</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+          1. Go to <strong style="color:var(--text)">console.firebase.google.com</strong><br>
+          2. New Project → Add Web App → Copy config<br>
+          3. Build → Realtime Database → Create (Test mode)
+        </p>
+        <div class="fg"><label class="fl">API Key</label><input class="fi" id="s-key" placeholder="AIzaSy..." value="${c.apiKey||""}"></div>
+        <div class="fg"><label class="fl">Database URL</label><input class="fi" id="s-db" placeholder="https://project-rtdb.firebaseio.com" value="${c.databaseURL||""}"></div>
+        <div class="fg"><label class="fl">Project ID</label><input class="fi" id="s-pid" placeholder="my-ipl-predictor" value="${c.projectId||""}"></div>
+        <div class="fg"><label class="fl">Admin Password (to enter results)</label><input class="fi" id="s-pwd" type="password" placeholder="Choose a password" value="${c.adminPwd||""}"></div>
+        <button class="btn btn-p" onclick="doSetup()">Connect & Start 🏏</button>
+      </div>
+      <button class="btn btn-s" onclick="demoMode()" style="margin-top:0;">👀 Try Demo Mode First</button>
+    </div>
+  </div>`);
+}
+
+function doSetup() {
+  const cfg = {
+    apiKey:      document.getElementById("s-key").value.trim(),
+    databaseURL: document.getElementById("s-db").value.trim(),
+    projectId:   document.getElementById("s-pid").value.trim(),
+    authDomain:  document.getElementById("s-pid").value.trim()+".firebaseapp.com",
+    storageBucket: document.getElementById("s-pid").value.trim()+".appspot.com",
+    adminPwd:    document.getElementById("s-pwd").value.trim(),
+  };
+  if (!cfg.apiKey||!cfg.databaseURL||!cfg.projectId) { toast("⚠️ Fill in all fields!"); return; }
+  if (!initFirebase(cfg)) { toast("❌ Firebase failed. Check config."); return; }
+  LS.set("fbConfig", cfg);
+  renderLogin();
+}
+
+function demoMode() {
+  LS.set("fbConfig",{demo:true});
+  renderLogin();
+}
+
+// ================================================================
+// LOGIN VIEW
+// ================================================================
+function renderLogin() {
+  $root(`<div class="splash">
+    <div class="splash-logo">👤</div>
+    <div class="splash-title">Join the League</div>
+    <div class="splash-sub">Enter your name to join your group's IPL Predictor</div>
+    <div style="width:100%">
+      <div class="fg"><input class="fi" id="u-name" placeholder="Your name" style="text-align:center;font-size:19px;padding:15px;" maxlength="20" autofocus></div>
+      <button class="btn btn-p" onclick="joinLeague()">Join & Start Predicting 🏏</button>
+    </div>
+  </div>`);
+  setTimeout(()=>{ const el=document.getElementById("u-name"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&joinLeague()); },100);
+}
+
+function joinLeague() {
+  const name = document.getElementById("u-name")?.value.trim();
+  if (!name) { toast("⚠️ Enter your name!"); return; }
+  const uid = "u"+Date.now()+Math.random().toString(36).slice(2,5);
+  currentUser = {id:uid, name};
+  LS.set("user", currentUser);
+  fbSet(`participants/${uid}`, {name, joined:Date.now()}).then(()=>go("home"));
+}
+
+// ================================================================
+// HOME VIEW
+// ================================================================
+function renderHome() {
+  const nm = getNextMatch();
+  const t1=TEAMS[nm.team1], t2=TEAMS[nm.team2];
+  const mdt = new Date(nm.date+"T"+nm.time+":00+05:30");
+  const myPred = (predictions[nm.id]||{})[currentUser.id];
+  const dl = deadlinePast(nm);
+
+  const recentHtml = Object.keys(results).slice(-3).reverse().map(mid=>{
+    const r=results[mid], m=getMatch(mid); if(!m)return"";
+    return `<div class="mrc">
+      <div class="mrc-hdr"><strong>${m.team1} vs ${m.team2}</strong><span class="badge bg-g">${r.winner} won</span></div>
+      <div style="font-size:12px;color:var(--muted)">🏏 ${r.topBat||"—"} &nbsp;•&nbsp; 🎳 ${r.topBwl||"—"}</div>
+    </div>`;
+  }).join("");
+
+  $root(wrapApp(`
+    <div class="hdr"><div class="hdr-title">🏏 IPL 2026</div><div class="hdr-badge">SEASON LIVE</div></div>
+
+    <div class="mc">
+      <div class="ct">⚡ NEXT MATCH — M${nm.no}</div>
+      <div class="mc-teams">
+        <div class="mc-team">
+          <div class="tbadge" style="background:${t1.color}">${nm.team1}</div>
+          <div class="tname">${t1.name.split(" ").slice(-1)[0]}</div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="mc-team">
+          <div class="tbadge" style="background:${t2.color}">${nm.team2}</div>
+          <div class="tname">${t2.name.split(" ").slice(-1)[0]}</div>
+        </div>
+      </div>
+      <div class="mm"><span>📅 ${fmtDate(nm.date)}</span><span>🕖 ${nm.time} IST</span></div>
+      <div class="mm" style="margin-top:4px"><span>📍 ${nm.venue}, ${nm.city}</span></div>
+      ${!dl && !myPred ? `<button class="btn btn-p" style="margin-top:14px;" onclick="go('predict')">Make Your Prediction →</button>` :
+        myPred ? `<div style="margin-top:12px"><span class="badge bg-g">✅ Predicted: ${myPred.winner}</span></div>` :
+        `<div style="margin-top:12px"><span class="badge bg-m">⏰ Predictions closed</span></div>`}
+    </div>
+
+    <div class="cd"><div class="cd-lbl">Match starts in</div><div class="cd-time" id="cd-t">--:--:--</div></div>
+
+    <div class="sh"><h2>📋 Schedule</h2></div>
+    <div style="padding:0 16px">
+      ${MATCHES.map(m=>`<div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="width:28px;font-size:11px;color:var(--muted);font-weight:700">M${m.no}</div>
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">${m.team1} vs ${m.team2}</div>
+        <div style="font-size:11px;color:var(--muted)">${fmtDate(m.date)} · ${m.city}</div></div>
+        ${results[m.id]?`<span class="badge bg-g" style="font-size:10px">Done</span>`:`<span class="badge bg-m" style="font-size:10px">${fmtDate(m.date)}</span>`}
+      </div>`).join("")}
+      <p style="font-size:11px;color:var(--muted);padding:10px 0;text-align:center">More fixtures TBA by BCCI</p>
+    </div>
+
+    ${recentHtml?`<div class="divider"></div><div class="sh"><h2>🏆 Recent Results</h2></div><div style="padding:0 16px 12px">${recentHtml}</div>`:""}
+
+    <div style="padding:0 16px 12px">
+      <a href="https://www.cricbuzz.com/cricket-match/live-scores" target="_blank" class="btn btn-s" style="display:block;text-align:center;text-decoration:none">📺 Live Scores on Cricbuzz ↗</a>
+    </div>
+  `));
+
+  if (countdownInterval) clearInterval(countdownInterval);
+  const update = () => { const el=document.getElementById("cd-t"); if(!el){clearInterval(countdownInterval);return;} el.textContent=fmtCD(mdt); };
+  update(); countdownInterval=setInterval(update,1000);
+}
+
+// ================================================================
+// PREDICT VIEW
+// ================================================================
+function renderPredict() {
+  const nm = getNextMatch();
+  const t1=TEAMS[nm.team1], t2=TEAMS[nm.team2];
+  const myPred = (predictions[nm.id]||{})[currentUser.id];
+  const dl = deadlinePast(nm);
+
+  const pastHtml = MATCHES.slice().reverse().filter(m=>results[m.id]&&(predictions[m.id]||{})[currentUser.id]).map(m=>{
+    const p=(predictions[m.id]||{})[currentUser.id], r=results[m.id];
+    let pts=0;
+    if(p.winner===r.winner) pts+=3;
+    if(p.topBat&&r.topBat&&p.topBat.trim().toLowerCase()===r.topBat.trim().toLowerCase()) pts+=2;
+    if(p.topBwl&&r.topBwl&&p.topBwl.trim().toLowerCase()===r.topBwl.trim().toLowerCase()) pts+=2;
+    return `<div class="mrc">
+      <div class="mrc-hdr"><strong>${m.team1} vs ${m.team2}</strong><span class="badge ${pts>0?"bg-g":"bg-m"}">+${pts} pts</span></div>
+      <div style="font-size:12px;color:var(--muted)">My pick: ${p.winner} · 🏏${p.topBat||"—"} · 🎳${p.topBwl||"—"}</div>
+      <div style="font-size:12px;color:var(--green);margin-top:3px">Result: ${r.winner} won · 🏏${r.topBat||"—"} · 🎳${r.topBwl||"—"}</div>
+    </div>`;
+  }).join("");
+
+  $root(wrapApp(`
+    <div class="hdr"><div class="hdr-title">🎯 Predictions</div></div>
+
+    <div class="mc" style="margin-bottom:8px">
+      <div class="ct">M${nm.no} · ${fmtDate(nm.date)}</div>
+      <div class="mc-teams">
+        <div class="mc-team"><div class="tbadge" style="background:${t1.color}">${nm.team1}</div><div class="tname">${t1.name.split(" ").slice(-1)[0]}</div></div>
+        <div class="vs">VS</div>
+        <div class="mc-team"><div class="tbadge" style="background:${t2.color}">${nm.team2}</div><div class="tname">${t2.name.split(" ").slice(-1)[0]}</div></div>
+      </div>
+      <div class="mm"><span>📍 ${nm.venue}, ${nm.city}</span></div>
+    </div>
+
+    ${dl ? `<div class="card"><p style="text-align:center;color:var(--muted)">⏰ Predictions are closed for this match.</p></div>`
+      : myPred ? `<div class="card">
+        <div class="ct">✅ YOUR PREDICTION</div>
+        <div style="margin-bottom:10px;font-size:15px"><strong>Winner:</strong> ${myPred.winner} <span class="badge bg-o" style="margin-left:6px">${TEAMS[myPred.winner]?.color?'':''}${myPred.winner}</span></div>
+        <div style="margin-bottom:6px;font-size:14px">🏏 <strong>Top Batter:</strong> ${myPred.topBat||"Not picked"}</div>
+        <div style="margin-bottom:16px;font-size:14px">🎳 <strong>Top Bowler:</strong> ${myPred.topBwl||"Not picked"}</div>
+        <button class="btn btn-s" onclick="editPred('${nm.id}')">✏️ Edit Prediction</button>
+      </div>`
+      : `<div class="card">
+        <div class="ct">🏆 Who wins?</div>
+        <div class="tpicker">
+          <div class="toption" id="pick-${nm.team1}" onclick="pickTeam('${nm.team1}')">
+            <div class="tbadge" style="background:${t1.color};margin:0 auto 8px">${nm.team1}</div>
+            <div style="font-weight:800;font-size:13px">${t1.name.split(" ").slice(-1)[0]}</div>
+          </div>
+          <div class="toption" id="pick-${nm.team2}" onclick="pickTeam('${nm.team2}')">
+            <div class="tbadge" style="background:${t2.color};margin:0 auto 8px">${nm.team2}</div>
+            <div style="font-weight:800;font-size:13px">${t2.name.split(" ").slice(-1)[0]}</div>
+          </div>
+        </div>
+        <div class="fg" style="margin-top:16px"><label class="fl">🏏 Top Batter (optional)</label><input class="fi" id="p-bat" placeholder="e.g. Virat Kohli"></div>
+        <div class="fg"><label class="fl">🎳 Top Bowler (optional)</label><input class="fi" id="p-bwl" placeholder="e.g. Jasprit Bumrah"></div>
+        <div style="background:var(--dark3);border-radius:var(--sm);padding:12px;margin-bottom:16px;font-size:12px">
+          <div style="font-weight:700;color:var(--text);margin-bottom:6px">🎯 Points per match</div>
+          <div class="pts-row"><span>Correct winner</span><span class="pts-v">+3 pts</span></div>
+          <div class="pts-row"><span>Correct top batter</span><span class="pts-v">+2 pts</span></div>
+          <div class="pts-row"><span>Correct top bowler</span><span class="pts-v">+2 pts</span></div>
+        </div>
+        <button class="btn btn-p" onclick="submitPred('${nm.id}')">Submit Prediction 🎯</button>
+      </div>`}
+
+    ${pastHtml?`<div class="sh"><h2>📜 My Past Picks</h2></div><div style="padding:0 16px 12px">${pastHtml}</div>`:""}
+  `));
+}
+
+function pickTeam(tid) {
+  selectedTeam = tid;
+  document.querySelectorAll(".toption").forEach(el=>el.classList.remove("sel"));
+  document.getElementById("pick-"+tid)?.classList.add("sel");
+}
+
+function submitPred(mid) {
+  if (!selectedTeam) { toast("⚠️ Pick a winner first!"); return; }
+  const bat = document.getElementById("p-bat")?.value.trim();
+  const bwl = document.getElementById("p-bwl")?.value.trim();
+  fbSet(`predictions/${mid}/${currentUser.id}`, {winner:selectedTeam, topBat:bat||"", topBwl:bwl||"", ts:Date.now()})
+    .then(()=>{ selectedTeam=null; toast("✅ Prediction locked in!"); go("home"); });
+}
+
+function editPred(mid) {
+  fbDel(`predictions/${mid}/${currentUser.id}`).then(()=>{ selectedTeam=null; renderPredict(); });
+}
+
+// ================================================================
+// LEADERBOARD VIEW
+// ================================================================
+function renderLeaderboard() {
+  const board = leaderboard();
+  const played = Object.keys(results).length;
+  const medals = ["🥇","🥈","🥉"];
+
+  $root(wrapApp(`
+    <div class="hdr"><div class="hdr-title">🏆 Standings</div><div class="hdr-badge">${played} PLAYED</div></div>
+
+    ${board.length===0 ? `<div class="empty"><span class="ei">🏏</span><p>No results yet!</p><p style="font-size:12px;margin-top:6px">Standings appear after the first match result is entered.</p></div>` : `
+    <div class="card">
+      ${board.map((p,i)=>{
+        const isMe = p.uid===currentUser.id;
+        return `<div class="lbi" style="${isMe?"background:rgba(255,107,0,0.06);border-radius:8px;padding:12px 8px;margin:0 -4px":""}">
+          <div class="lbr ${i<3?"gold":""}">${i<3?medals[i]:i+1}</div>
+          <div class="av" style="${isMe?"background:var(--orange)":"background:var(--dark3);color:var(--text)"}">${p.name[0].toUpperCase()}</div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:15px">${p.name} ${isMe?'<span class="badge bg-o" style="font-size:10px">You</span>':""}</div>
+            <div style="font-size:11px;color:var(--muted)">${p.breakdown.length} match${p.breakdown.length!==1?"es":""}</div>
+          </div>
+          <div style="text-align:right"><div class="lbpts">${p.total}</div><div style="font-size:10px;color:var(--muted)">pts</div></div>
+        </div>`;
+      }).join("")}
+    </div>
+
+    ${board.find(p=>p.uid===currentUser.id)?.breakdown.length ? `
+    <div class="card">
+      <div class="ct">📊 My Breakdown</div>
+      ${board.find(p=>p.uid===currentUser.id).breakdown.map(b=>`
+        <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <strong>${b.m.team1} vs ${b.m.team2}</strong>
+            <span class="badge ${b.pts>0?"bg-g":"bg-m"}">+${b.pts} pts</span>
+          </div>
+          <div style="color:var(--muted);font-size:11px">${b.det.join(" · ")}</div>
+        </div>`).join("")}
+    </div>`:""}`}
+
+    <div class="card">
+      <div class="ct">🎯 Scoring Rules</div>
+      <div class="pts-row"><span>Correct winner</span><span class="pts-v">+3 pts</span></div>
+      <div class="pts-row"><span>Correct top batter</span><span class="pts-v">+2 pts</span></div>
+      <div class="pts-row"><span>Correct top bowler</span><span class="pts-v">+2 pts</span></div>
+    </div>
+  `));
+}
+
+// ================================================================
+// INSIGHTS VIEW
+// ================================================================
+function renderInsights() {
+  const nm = getNextMatch();
+  const t1=TEAMS[nm.team1], t2=TEAMS[nm.team2];
+  const p = PITCH[nm.city] || PITCH["Mumbai"];
+  const apiKey = LS.get("claudeKey")||"";
+  const hasKey = !!apiKey;
+
+  $root(wrapApp(`
+    <div class="hdr"><div class="hdr-title">🧠 Match Insights</div></div>
+
+    <div class="mc" style="margin-bottom:8px">
+      <div class="ct">M${nm.no}: ${nm.team1} vs ${nm.team2}</div>
+      <div style="font-size:13px;color:var(--muted)">📍 ${nm.venue}, ${nm.city}</div>
+    </div>
+
+    <div class="card">
+      <div class="ct">🏟️ Pitch Report — ${nm.city}</div>
+      ${[["🏏 Batting Friendly",p.bat],["🎳 Bowling Friendly",p.bowl],["🌀 Spin Factor",p.spin],["💨 Pace Factor",p.pace],["💧 Dew Factor",p.dew]].map(([l,v])=>`
+        <div class="ps">
+          <div style="font-size:12px;width:128px;color:var(--text)">${l}</div>
+          <div class="pbw"><div class="pb" style="width:${v}%"></div></div>
+          <div style="font-size:13px;font-weight:800;color:var(--orange);width:28px;text-align:right">${v}</div>
+        </div>`).join("")}
+      <p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">💡 ${p.note}</p>
+    </div>
+
+    <div class="card">
+      <div class="ct">📰 Latest News & Injuries</div>
+      <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:12px">Get the latest team news, injury updates, and playing XI before each match.</p>
+      <a href="https://www.cricbuzz.com/cricket-series/9437/indian-premier-league-2026/news" target="_blank" class="btn btn-s" style="text-align:center;text-decoration:none;font-size:13px">📰 IPL News on Cricbuzz ↗</a>
+      <a href="https://sports.ndtv.com/ipl-2026" target="_blank" class="btn btn-s" style="text-align:center;text-decoration:none;font-size:13px;margin-top:8px">📰 IPL Updates on NDTV Sports ↗</a>
+    </div>
+
+    <div class="card">
+      <div class="ct">🤖 AI Cricket Expert</div>
+
+      ${!hasKey ? `
+      <div class="api-box">
+        <div style="font-size:12px;color:var(--gold);font-weight:700;margin-bottom:6px">⚡ Unlock AI Analysis</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Get expert AI analysis on pitch conditions, team matchups, player form & toss impact.</p>
+        <div style="display:flex;gap:8px">
+          <input class="fi" id="ak-in" type="password" placeholder="sk-ant-..." style="flex:1;font-size:13px">
+          <button class="btn btn-p btn-sm" onclick="saveKey()">Save</button>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin-top:7px">Free key at <strong style="color:var(--text)">console.anthropic.com</strong></p>
+      </div>` : `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span class="badge bg-g">✅ AI Active</span>
+        <button onclick="clearKey()" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer">Change key</button>
+      </div>`}
+
+      <div class="chat-wrap" id="chat-el">
+        <div class="cm bot"><div class="cb">👋 Ask me anything about IPL 2026! Pitch conditions, team strategies, who to pick as top batter — I'm here to help your predictions.</div></div>
+        ${chatHistory.map(m=>`<div class="cm ${m.role}"><div class="cb">${m.content}</div></div>`).join("")}
+      </div>
+
+      <div class="ci-row">
+        <input class="fi" id="ci" placeholder="Ask about pitch, teams, players..." onkeydown="if(event.key==='Enter')doChat()" style="font-size:13px">
+        <button class="csend" onclick="doChat()">➤</button>
+      </div>
+
+      <div class="quick-btns">
+        ${[`Pitch analysis for ${nm.city}`,`${nm.team1} vs ${nm.team2} prediction`,`Who should I pick as top batter?`,`How does toss affect this match?`]
+          .map(q=>`<button class="btn btn-s btn-sm" onclick="askQ(${JSON.stringify(q)})">💬 ${q}</button>`).join("")}
+      </div>
+    </div>
+  `));
+
+  const ce=document.getElementById("chat-el"); if(ce) ce.scrollTop=ce.scrollHeight;
+}
+
+async function doChat() {
+  const inp=document.getElementById("ci"); if(!inp)return;
+  const msg=inp.value.trim(); if(!msg)return;
+  inp.value=""; askQ(msg);
+}
+
+async function askQ(q) {
+  chatHistory.push({role:"user",content:q});
+  const nm=getNextMatch(), p=PITCH[nm.city]||{};
+  const apiKey=LS.get("claudeKey")||"";
+
+  if (!apiKey) {
+    chatHistory.push({role:"bot",content:"⚡ Add your Claude API key above to enable AI analysis!"});
+    renderInsights(); return;
+  }
+
+  chatHistory.push({role:"bot",content:"⏳ Analysing…"});
+  renderInsights();
+
+  const sysMsg = `${CHAT_CONTEXT.content}\n\nCurrent match context: ${nm.team1} vs ${nm.team2} at ${nm.venue}, ${nm.city} on ${nm.date}. Pitch: batting=${p.bat}/100, bowling=${p.bowl}/100, spin=${p.spin}/100, pace=${p.pace}/100, dew=${p.dew}/100. Pitch notes: ${p.note}`;
+
+  try {
+    // Try Netlify function proxy first (works when deployed to Netlify)
+    const res = await fetch("/api/chat", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({message:q, apiKey, systemPrompt:sysMsg})
+    });
+    if (res.ok) {
+      const d = await res.json();
+      chatHistory[chatHistory.length-1] = {role:"bot", content:d.content};
+    } else { throw new Error("proxy unavailable"); }
+  } catch(e) {
+    // Pitch-data fallback (no backend needed)
+    chatHistory[chatHistory.length-1] = {role:"bot",
+      content:`📊 ${nm.city} pitch insight:\n${p.note}\n\nBatting score: ${p.bat}/100 · Spin: ${p.spin}/100 · Pace: ${p.pace}/100 · Dew: ${p.dew}/100\n\n🚀 For live AI analysis, deploy this app to Netlify — the chatbot will connect automatically with your saved API key!`};
+  }
+  renderInsights();
+}
+
+function saveKey() { const v=document.getElementById("ak-in")?.value.trim(); if(v){LS.set("claudeKey",v);toast("✅ API key saved!");renderInsights();} }
+function clearKey() { LS.del("claudeKey"); renderInsights(); }
+
+// ================================================================
+// SETTINGS VIEW
+// ================================================================
+function renderSettings() {
+  const cfg = LS.get("fbConfig")||{};
+  $root(wrapApp(`
+    <div class="hdr"><div class="hdr-title">⚙️ Settings</div></div>
+
+    <div class="card">
+      <div class="ct">👤 Profile</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <div class="av" style="width:50px;height:50px;font-size:20px">${currentUser.name[0].toUpperCase()}</div>
+        <div><div style="font-weight:800;font-size:18px">${currentUser.name}</div><div style="font-size:12px;color:var(--muted)">${db?"Connected to Firebase":"Demo mode"}</div></div>
+      </div>
+      <button class="btn btn-s" onclick="changeName()">✏️ Change Name</button>
+    </div>
+
+    <div class="admin-box">
+      <div style="font-size:13px;font-weight:800;color:var(--orange);margin-bottom:10px">🔐 Admin — Enter Match Results</div>
+      ${isAdmin ? renderAdminPanel() : `
+        <div class="fg"><input class="fi" id="apwd" type="password" placeholder="Admin password"></div>
+        <button class="btn btn-p" onclick="checkPwd()">Unlock Admin</button>
+      `}
+    </div>
+
+    <div class="card">
+      <div class="ct">🔥 Connection</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">${db?"✅ Firebase connected — all predictions sync in real time.":"⚠️ Running in demo mode (predictions only saved on this device)."}</p>
+      <button class="btn btn-s" onclick="resetApp()">🔄 Reconfigure / Reset</button>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="ct">📤 Share With Group</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">Send your Netlify link in the WhatsApp group. Everyone joins by entering their name — no accounts needed!</p>
+      <button class="btn btn-s" onclick="shareApp()">🔗 Copy App Link</button>
+    </div>
+  `));
+}
+
+function renderAdminPanel() {
+  return `
+    <p style="font-size:12px;color:var(--green);margin-bottom:12px">✅ Admin access granted. Enter results after each match to update points.</p>
+    <div class="fg"><label class="fl">Select Match</label>
+      <select class="fi" id="adm-m" onchange="loadAdmMatch()">
+        <option value="">-- Select match --</option>
+        ${MATCHES.map(m=>`<option value="${m.id}">${m.no}. ${m.team1} vs ${m.team2} (${fmtDate(m.date)})${results[m.id]?" ✅":""}</option>`).join("")}
+      </select>
+    </div>
+    <div id="adm-form" style="display:none">
+      <div class="fg"><label class="fl">Winner</label>
+        <select class="fi" id="adm-w"><option value="">-- Pick winner --</option></select>
+      </div>
+      <div class="fg"><label class="fl">Top Batter</label><input class="fi" id="adm-b" placeholder="Player name"></div>
+      <div class="fg"><label class="fl">Top Bowler</label><input class="fi" id="adm-bwl" placeholder="Player name"></div>
+      <button class="btn btn-p" onclick="saveResult()">💾 Save Result & Update Points</button>
+    </div>
+  `;
+}
+
+function loadAdmMatch() {
+  const mid=document.getElementById("adm-m")?.value; if(!mid)return;
+  const m=getMatch(mid); if(!m)return;
+  const form=document.getElementById("adm-form"); if(!form)return;
+  form.style.display="block";
+  const ws=document.getElementById("adm-w");
+  ws.innerHTML=`<option value="">-- Pick winner --</option>
+    <option value="${m.team1}" ${results[mid]?.winner===m.team1?"selected":""}>${m.team1}</option>
+    <option value="${m.team2}" ${results[mid]?.winner===m.team2?"selected":""}>${m.team2}</option>`;
+  if(results[mid]){
+    document.getElementById("adm-b").value=results[mid].topBat||"";
+    document.getElementById("adm-bwl").value=results[mid].topBwl||"";
+  }
+}
+
+function saveResult() {
+  const mid=document.getElementById("adm-m")?.value;
+  const winner=document.getElementById("adm-w")?.value;
+  const bat=document.getElementById("adm-b")?.value.trim();
+  const bwl=document.getElementById("adm-bwl")?.value.trim();
+  if (!mid||!winner) { toast("⚠️ Select match and winner!"); return; }
+  fbSet(`results/${mid}`,{winner,topBat:bat||"",topBwl:bwl||""})
+    .then(()=>{ toast("✅ Result saved! Points updated."); renderSettings(); });
+}
+
+function checkPwd() {
+  const cfg=LS.get("fbConfig")||{};
+  const input=document.getElementById("apwd")?.value;
+  if (!cfg.adminPwd || input===cfg.adminPwd) { isAdmin=true; toast("✅ Admin unlocked!"); renderSettings(); }
+  else toast("❌ Wrong password!");
+}
+
+function changeName() {
+  const n=prompt("Enter new name:", currentUser.name);
+  if(n&&n.trim()){
+    currentUser.name=n.trim(); LS.set("user",currentUser);
+    fbSet(`participants/${currentUser.id}/name`, currentUser.name).then(()=>{ toast("✅ Name updated!"); renderSettings(); });
+  }
+}
+
+function shareApp() {
+  const url=window.location.href;
+  if(navigator.share) navigator.share({title:"IPL Predictor 2026",text:"Join our IPL prediction group!",url});
+  else { navigator.clipboard?.writeText(url); toast("🔗 Link copied!"); }
+}
+
+function resetApp() {
+  if(confirm("Reset app? You'll need to reconfigure Firebase.")) {
+    ["fbConfig","user","claudeKey"].forEach(k=>LS.del(k));
+    location.reload();
+  }
+}
+
+// ================================================================
+// NAVIGATION & INIT
+// ================================================================
+function go(view) { currentView=view; renderView(); }
+
+function renderView() {
+  if (countdownInterval&&currentView!=="home") { clearInterval(countdownInterval); countdownInterval=null; }
+  switch(currentView) {
+    case "home":     renderHome(); break;
+    case "predict":  renderPredict(); break;
+    case "lb":       renderLeaderboard(); break;
+    case "insights": renderInsights(); break;
+    case "settings": renderSettings(); break;
+  }
+}
+
+function init() {
+  const cfg=LS.get("fbConfig");
+  if (!cfg) { renderSetup(); return; }
+  if (!cfg.demo) initFirebase(cfg);
+  const u=LS.get("user");
+  if (!u) { renderLogin(); return; }
+  currentUser=u; go("home");
+}
+
+init();
+</script>
+</body>
+</html>
