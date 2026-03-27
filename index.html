@@ -707,9 +707,6 @@ function renderHome() {
   const nm = getNextMatch();
   const mdt = new Date(nm.date+"T"+nm.time+":00+05:30");
   const p = PITCH[nm.city] || PITCH["Mumbai"];
-  const apiKey = LS.get("claudeKey")||"";
-  const hasKey = !!apiKey;
-
   // Check for new results banner
   const lastSeen = LS.get("lastResultSeen") || 0;
   const newResults = Object.keys(results).filter(mid => {
@@ -739,20 +736,6 @@ function renderHome() {
         <!-- Chatbot -->
         <div class="card">
           <div class="ct">AI Cricket Analyst</div>
-
-          ${!hasKey ? `
-          <div class="api-box">
-            <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Get AI analysis on pitch, matchups, player form & injuries. Sources are always cited.</p>
-            <div style="display:flex;gap:8px">
-              <input class="fi" id="ak-in" type="password" placeholder="Claude API key (sk-ant-...)" style="flex:1;font-size:13px">
-              <button class="btn btn-p btn-sm" onclick="saveKey()">Save</button>
-            </div>
-            <p style="font-size:11px;color:var(--muted);margin-top:7px">Free key at <strong style="color:var(--text)">console.anthropic.com</strong></p>
-          </div>` : `
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-            <span class="badge bg-g">AI Active</span>
-            <button onclick="clearKey()" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer">Change key</button>
-          </div>`}
 
           <div class="chat-wrap" id="chat-el">
             <div class="cm bot"><div class="cb">Ask me about pitch conditions, player form, injuries, team matchups — I'll cite my sources.</div></div>
@@ -1085,15 +1068,6 @@ function renderAdmin() {
       <button class="btn btn-s" onclick="shareReminder()">Remind Group to Predict</button>
     </div>` : ""}
 
-    <div class="card">
-      <div class="ct">AI Settings</div>
-      <div class="fg"><label class="fl">Claude API Key</label>
-      <div style="display:flex;gap:8px">
-        <input class="fi" id="admin-ak" type="password" value="${LS.get("claudeKey")||""}" placeholder="sk-ant-..." style="flex:1;font-size:13px">
-        <button class="btn btn-p btn-sm" onclick="LS.set('claudeKey',document.getElementById('admin-ak').value.trim());toast('Key saved!')">Save</button>
-      </div></div>
-    </div>
-
     <div class="card" style="margin-bottom:20px">
       <div class="ct">Connection</div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:12px">${db?"Firebase connected — predictions sync in real time.":"Demo mode (local only)."}</p>
@@ -1221,12 +1195,6 @@ async function doChat() {
 async function askQ(q) {
   chatHistory.push({role:"user",content:q});
   const nm=getNextMatch(), p=PITCH[nm.city]||{};
-  const apiKey=LS.get("claudeKey")||"";
-
-  if (!apiKey) {
-    chatHistory.push({role:"bot",content:"Add your Claude API key in Settings to enable AI analysis."});
-    renderHome(); return;
-  }
 
   chatHistory.push({role:"bot",content:"Analysing..."});
   renderHome();
@@ -1237,7 +1205,7 @@ async function askQ(q) {
   try {
     const res = await fetch("/api/chat", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({message:q, apiKey, systemPrompt:sysMsg, team1:nm.team1, team2:nm.team2})
+      body: JSON.stringify({message:q, systemPrompt:sysMsg, team1:nm.team1, team2:nm.team2})
     });
     if (res.ok) {
       const d = await res.json();
@@ -1250,8 +1218,6 @@ async function askQ(q) {
   renderHome();
 }
 
-function saveKey() { const v=document.getElementById("ak-in")?.value.trim(); if(v){LS.set("claudeKey",v);toast("API key saved!");renderHome();} }
-function clearKey() { LS.del("claudeKey"); renderHome(); }
 
 // ================================================================
 // NEWS
@@ -1379,7 +1345,7 @@ function changeName() {
 function resetApp() {
   if(confirm("Reset app? You'll need to reconfigure.")) {
     try { firebase.auth().signOut(); } catch(e){}
-    ["fbConfig","user","claudeKey","groupId","lastResultSeen"].forEach(k=>LS.del(k));
+    ["fbConfig","user","groupId","lastResultSeen"].forEach(k=>LS.del(k));
     location.reload();
   }
 }
