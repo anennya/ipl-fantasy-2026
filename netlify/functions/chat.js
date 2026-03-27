@@ -1,8 +1,41 @@
-// Netlify serverless function — proxies requests to Claude API
-// This avoids CORS issues when calling Claude directly from the browser.
-//
-// Setup: Add CLAUDE_API_KEY as an environment variable in your Netlify dashboard
-// (Site settings → Environment variables) OR pass the key from the app directly.
+// Netlify serverless function — proxies requests to Claude API with live news context
+
+// Fetch IPL news headlines with source URLs for citation
+async function fetchNewsContext(team1, team2) {
+  try {
+    const query = `IPL 2026 ${team1} ${team2}`.trim();
+    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN&ceid=IN:en`;
+    const resp = await fetch(rssUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; IPLPredictor/1.0)" },
+    });
+    if (!resp.ok) return "";
+
+    const xml = await resp.text();
+    const articles = [];
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    let match;
+
+    while ((match = itemRegex.exec(xml)) !== null && articles.length < 5) {
+      const item = match[1];
+      const title = (
+        /<title><!\[CDATA\[(.*?)\]\]><\/title>/s.exec(item) ||
+        /<title>(.*?)<\/title>/s.exec(item) ||
+        []
+      )[1] || "";
+      const link = (/<link>(.*?)<\/link>/s.exec(item) || [])[1] || "";
+      const source = (/<source[^>]*>(.*?)<\/source>/s.exec(item) || [])[1] || "";
+      const clean = title.replace(/ - [^-]+$/, "").trim();
+      if (clean) articles.push({ title: clean, source: source.trim(), url: link.trim() });
+    }
+
+    if (articles.length === 0) return "";
+    const timestamp = new Date().toISOString();
+    return `\n\n[NEWS CONTEXT - fetched ${timestamp}]\n` +
+      articles.map((a, i) => `${i+1}. "${a.title}" (Source: ${a.source}, Link: ${a.url})`).join("\n");
+  } catch {
+    return "";
+  }
+}
 
 exports.handler = async function (event) {
   if (event.httpMethod !== "POST") {
@@ -16,13 +49,16 @@ exports.handler = async function (event) {
     return { statusCode: 400, body: "Invalid JSON" };
   }
 
-  const { message, apiKey, systemPrompt } = body;
+  const { message, apiKey, systemPrompt, team1, team2 } = body;
 
-  // Use the key passed from the app, or fall back to env var
   const key = apiKey || process.env.CLAUDE_API_KEY;
   if (!key) {
     return { statusCode: 401, body: JSON.stringify({ error: "No API key provided" }) };
   }
+
+  // Fetch live news context (with URLs for citations)
+  const newsContext = await fetchNewsContext(team1 || "", team2 || "");
+  const enhancedPrompt = (systemPrompt || "You are an expert IPL cricket analyst. Be concise and insightful.") + newsContext;
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -34,8 +70,8 @@ exports.handler = async function (event) {
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 350,
-        system: systemPrompt || "You are an expert IPL cricket analyst. Be concise and insightful.",
+        max_tokens: 500,
+        system: enhancedPrompt,
         messages: [{ role: "user", content: message }],
       }),
     });

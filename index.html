@@ -6,6 +6,7 @@
   <title>🏏 IPL Predictor 2026</title>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
   <style>
     :root {
       --orange: #FF6B00; --orange-light: #FF8C33; --gold: #FFD700;
@@ -21,6 +22,7 @@
     .hdr { background: linear-gradient(135deg, #0A0A15, #1a0a30); padding: 14px 18px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; }
     .hdr-title { font-size: 17px; font-weight: 800; }
     .hdr-badge { background: var(--orange); color: #fff; font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 20px; letter-spacing: 0.05em; }
+    .hdr-icon { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 4px; }
 
     /* Nav */
     .nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--dark2); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -81,10 +83,11 @@
     .cm.bot { align-self: flex-start; }
     .cb { padding: 10px 13px; border-radius: 16px; font-size: 13px; line-height: 1.55; }
     .cm.user .cb { background: var(--orange); color: #fff; border-bottom-right-radius: 4px; }
-    .cm.bot .cb { background: var(--dark3); border: 1px solid var(--border); border-bottom-left-radius: 4px; white-space: pre-wrap; }
+    .cm.bot .cb { background: var(--dark3); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+    .cm.bot .cb a { color: var(--orange); text-decoration: underline; }
     .ci-row { display: flex; gap: 8px; margin-top: 10px; }
     .ci-row .fi { flex: 1; }
-    .csend { background: var(--orange); border: none; border-radius: var(--sm); color: #fff; font-size: 18px; width: 46px; cursor: pointer; flex-shrink: 0; border-radius: var(--sm); }
+    .csend { background: var(--orange); border: none; border-radius: var(--sm); color: #fff; font-size: 18px; width: 46px; cursor: pointer; flex-shrink: 0; }
 
     /* Pitch bars */
     .ps { display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
@@ -103,6 +106,7 @@
     .bg-g { background: rgba(0,214,143,0.15); color: var(--green); }
     .bg-o { background: rgba(255,107,0,0.15); color: var(--orange); }
     .bg-m { background: var(--dark3); color: var(--muted); }
+    .bg-r { background: rgba(255,77,77,0.15); color: var(--red); }
 
     /* Misc */
     .sh { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 4px; }
@@ -115,12 +119,39 @@
     .pts-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
     .pts-row:last-child { border-bottom: none; }
     .pts-v { color: var(--green); font-weight: 700; }
+    .pts-miss { color: var(--red); font-weight: 700; }
     .admin-box { background: rgba(255,107,0,0.08); border: 1px solid rgba(255,107,0,0.25); border-radius: var(--radius); padding: 16px; margin: 12px 16px; }
     .api-box { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.2); border-radius: var(--sm); padding: 12px; margin-bottom: 14px; }
     .mrc { background: var(--dark3); border-radius: var(--sm); padding: 12px; margin-bottom: 8px; }
     .mrc-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     a.btn { text-decoration: none; display: block; }
     .quick-btns { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+
+    /* News widget */
+    .news-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; text-decoration: none; color: inherit; }
+    .news-item:last-child { border-bottom: none; }
+    .news-item:active { opacity: 0.7; }
+    .news-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--orange); flex-shrink: 0; margin-top: 5px; }
+    .news-body { flex: 1; min-width: 0; }
+    .news-title { font-size: 13px; font-weight: 600; line-height: 1.45; margin-bottom: 3px; }
+    .news-meta { font-size: 11px; color: var(--muted); }
+    .news-loading { text-align: center; color: var(--muted); font-size: 13px; padding: 16px 0; }
+    .news-refresh { font-size: 11px; color: var(--orange); background: none; border: none; cursor: pointer; float: right; font-weight: 700; }
+
+    /* Prediction sections */
+    .pred-section { background: var(--dark3); border-radius: var(--sm); padding: 14px; margin-bottom: 12px; }
+    .pred-section .fl { margin-bottom: 8px; }
+    .num-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Stats bars */
+    .stat-bar { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    .stat-label { font-size: 12px; color: var(--muted); width: 90px; }
+    .stat-fill { flex: 1; height: 6px; background: var(--dark3); border-radius: 3px; overflow: hidden; }
+    .stat-fill-inner { height: 100%; border-radius: 3px; background: var(--orange); transition: width 0.5s; }
+    .stat-val { font-size: 12px; font-weight: 700; color: var(--text); width: 30px; text-align: right; }
+
+    /* Banner */
+    .banner { background: linear-gradient(135deg, rgba(0,214,143,0.15), rgba(0,214,143,0.05)); border: 1px solid rgba(0,214,143,0.3); border-radius: var(--sm); padding: 12px 16px; margin: 12px 16px; font-size: 13px; color: var(--green); display: flex; align-items: center; gap: 10px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -158,17 +189,42 @@ const PITCH = {
   "Mullanpur": { bat:70, bowl:72, spin:45, pace:80, dew:50,  note:"New stadium with hard pitches. Pacers extract bounce early. Pitch settles for batters later." },
   "Lucknow":   { bat:58, bowl:82, spin:88, pace:58, dew:38,  note:"One of the slowest IPL pitches. Spinners dominate. Batting gets progressively harder." },
   "Kolkata":   { bat:74, bowl:72, spin:60, pace:76, dew:65,  note:"Iconic venue. Seamers effective early morning; pitch eases later. Evening dew is significant." },
+  "Chennai":   { bat:62, bowl:78, spin:90, pace:50, dew:25,  note:"MA Chidambaram is a spinner's paradise. Slow, low surface with sharp turn." },
+  "Hyderabad": { bat:78, bowl:65, spin:58, pace:70, dew:55,  note:"Hard, true pitch. Fast outfield makes this a big-scoring venue." },
+  "Delhi":     { bat:72, bowl:68, spin:62, pace:72, dew:58,  note:"Decent batting surface. Seamers get help early; pitch flattens. Evening dew significant." },
+  "Ahmedabad": { bat:80, bowl:62, spin:48, pace:74, dew:45,  note:"Large outfield but true, fast pitch. Pacers effective early; batting gets easier." },
+  "Jaipur":    { bat:65, bowl:75, spin:78, pace:60, dew:42,  note:"Slower than most IPL venues. Spinners come into play early; low scores competitive." },
+  "Dharamshala":{ bat:68, bowl:74, spin:55, pace:82, dew:20, note:"High-altitude venue. Seam and swing pronounced throughout. Low dew." },
+};
+
+const SCORING = {
+  winner:       { exact: 3 },
+  topScorer:    { exact: 4 },
+  bestEconomy:  { exact: 4 },
+  mostWickets:  { exact: 4 },
+  playingXI:    { perfect: 5, good: 3, ok: 1, thresholds: [11, 8, 5] },
+  totalRuns:    { exact: 3, close: 2, near: 1, band: 10 },
+  powerplay:    { exact: 3, close: 2, near: 1, band: 8 },
+  sixes:        { exact: 3, close: 2, near: 1, band: 2 },
+  dotBalls:     { exact: 3, close: 2, near: 1, band: 10 },
+  streakBonus:  { threshold: 3, multiplier: 1.5 },
 };
 
 const CHAT_CONTEXT = {
-  role:"system",
-  content:`You are an expert IPL cricket analyst with deep knowledge of the 2026 IPL season. You give concise, insightful, and practical analysis about match conditions, team strategies, player form, and predictions. Keep responses under 180 words. Be specific and use cricket terminology. Sound like a knowledgeable fan — engaging and confident, not robotic.`
+  content:`You are an IPL 2026 cricket analyst. Follow these rules strictly:
+1. ONLY state facts from the [NEWS CONTEXT] or [MATCH DATA] sections below, or well-established historical facts (team records, venue stats, player career stats).
+2. When citing recent news, ALWAYS include the source name with a link in markdown format: [Source Name](url).
+3. If you are not confident about a claim, say "I don't have confirmed information on that."
+4. NEVER invent injury updates, team selection news, or trade rumors.
+5. Do not use information older than 7 days unless discussing historical team/player statistics.
+6. Keep responses under 200 words.`
 };
 
 // ================================================================
 // STATE
 // ================================================================
 let db = null, currentUser = null, currentView = "home";
+let groupId = null, groupInfo = null;
 let participants = {}, predictions = {}, results = {}, chatHistory = [];
 let isAdmin = false, selectedTeam = null, countdownInterval = null;
 
@@ -188,20 +244,26 @@ function initFirebase(config) {
   try {
     if (!firebase.apps.length) firebase.initializeApp(config);
     db = firebase.database();
-    db.ref("participants").on("value", s => { participants = s.val()||{}; safeRender(); });
-    db.ref("predictions").on("value", s => { predictions = s.val()||{}; safeRender(); });
-    db.ref("results").on("value",     s => { results = s.val()||{}; safeRender(); });
     return true;
   } catch(e) { console.error(e); return false; }
 }
 
+function listenToGroup(gid) {
+  groupId = gid;
+  LS.set("groupId", gid);
+  const g = db.ref(`groups/${gid}`);
+  g.child("info").on("value", s => { groupInfo = s.val()||{}; safeRender(); });
+  g.child("members").on("value", s => { participants = s.val()||{}; safeRender(); });
+  g.child("predictions").on("value", s => { predictions = s.val()||{}; safeRender(); });
+  g.child("results").on("value", s => { results = s.val()||{}; safeRender(); });
+}
+
+function gRef(path) { return `groups/${groupId}/${path}`; }
+
 function fbSet(path, val) {
-  if (db) return db.ref(path).set(val);
-  // Demo mode: update local state
+  if (db && groupId) return db.ref(gRef(path)).set(val);
+  // Demo mode fallback
   const parts = path.split("/");
-  let obj = window._demoState || (window._demoState = {});
-  for (let i = 0; i < parts.length-1; i++) { obj[parts[i]] = obj[parts[i]]||{}; obj = obj[parts[i]]; }
-  obj[parts[parts.length-1]] = val;
   if (path.startsWith("predictions/")) {
     const [,matchId,userId] = parts;
     if (!predictions[matchId]) predictions[matchId] = {};
@@ -209,7 +271,7 @@ function fbSet(path, val) {
   } else if (path.startsWith("results/")) {
     const [,matchId] = parts;
     results[matchId] = val;
-  } else if (path.startsWith("participants/")) {
+  } else if (path.startsWith("members/")) {
     const [,uid] = parts;
     participants[uid] = val;
   }
@@ -217,13 +279,26 @@ function fbSet(path, val) {
 }
 
 function fbDel(path) {
-  if (db) return db.ref(path).remove();
+  if (db && groupId) return db.ref(gRef(path)).remove();
   const parts = path.split("/");
   if (path.startsWith("predictions/")) {
     const [,matchId,userId] = parts;
     if (predictions[matchId]) delete predictions[matchId][userId];
   }
   return Promise.resolve();
+}
+
+// ================================================================
+// AUTH
+// ================================================================
+async function ensureAuth() {
+  if (!db) return null;
+  try {
+    const user = firebase.auth().currentUser;
+    if (user) return user.uid;
+    const cred = await firebase.auth().signInAnonymously();
+    return cred.user.uid;
+  } catch(e) { console.error("Auth failed:", e); return null; }
 }
 
 // ================================================================
@@ -241,7 +316,7 @@ function getMatch(id) { return MATCHES.find(m=>m.id===id); }
 function fmtDate(d) { return new Date(d+"T00:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"}); }
 function fmtCD(dt) {
   const diff = dt - new Date();
-  if (diff <= 0) return "LIVE NOW 🔴";
+  if (diff <= 0) return "LIVE NOW";
   const d=Math.floor(diff/86400000), h=Math.floor((diff%86400000)/3600000),
         m=Math.floor((diff%3600000)/60000), s=Math.floor((diff%60000)/1000);
   if (d>0) return `${d}d ${h}h ${m}m`;
@@ -254,23 +329,133 @@ function toast(msg, dur=2800) {
   document.body.appendChild(t); setTimeout(()=>t.remove(), dur);
 }
 function deadlinePast(m) { return new Date() > new Date(m.date+"T"+m.time+":00+05:30"); }
+
+// Convert markdown links to HTML
+function mdLinks(text) {
+  return text.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+
+// ================================================================
+// SCORING ENGINE
+// ================================================================
+function scoreNumeric(pred, actual, cfg) {
+  if (pred === "" || pred === undefined || actual === "" || actual === undefined) return { pts: 0, label: "—" };
+  const p = parseInt(pred), a = parseInt(actual);
+  if (isNaN(p) || isNaN(a)) return { pts: 0, label: "—" };
+  const diff = Math.abs(p - a);
+  if (diff === 0) return { pts: cfg.exact, label: "Exact!" };
+  if (diff <= cfg.band) return { pts: cfg.close, label: `Within ${cfg.band}` };
+  if (diff <= cfg.band * 2) return { pts: cfg.near, label: `Within ${cfg.band*2}` };
+  return { pts: 0, label: `Off by ${diff}` };
+}
+
+function scorePlayer(pred, actual) {
+  if (!pred || !actual) return false;
+  return pred.trim().toLowerCase() === actual.trim().toLowerCase();
+}
+
+function scorePlayingXI(predArr, actualArr) {
+  if (!predArr || !actualArr || !predArr.length) return { pts: 0, correct: 0 };
+  const actual = actualArr.map(p => p.trim().toLowerCase());
+  const correct = predArr.filter(p => actual.includes(p.trim().toLowerCase())).length;
+  const t = SCORING.playingXI.thresholds;
+  if (correct >= t[0]) return { pts: SCORING.playingXI.perfect, correct };
+  if (correct >= t[1]) return { pts: SCORING.playingXI.good, correct };
+  if (correct >= t[2]) return { pts: SCORING.playingXI.ok, correct };
+  return { pts: 0, correct };
+}
+
+function getWinStreak(uid) {
+  let streak = 0;
+  const sortedMatches = MATCHES.filter(m => results[m.id]).sort((a,b) => a.date.localeCompare(b.date));
+  for (let i = sortedMatches.length - 1; i >= 0; i--) {
+    const m = sortedMatches[i];
+    const pred = (predictions[m.id]||{})[uid];
+    if (!pred || !results[m.id]) break;
+    if (pred.winner === results[m.id].winner) streak++;
+    else break;
+  }
+  return streak;
+}
+
 function calcPts(uid) {
-  let total=0, breakdown=[];
+  let total = 0, breakdown = [];
   for (const [mid, res] of Object.entries(results)) {
     const pred = (predictions[mid]||{})[uid]; if (!pred) continue;
     const m = getMatch(mid); if (!m) continue;
-    let pts=0, det=[];
-    if (pred.winner===res.winner)                        { pts+=3; det.push("✅ Winner +3"); }   else det.push("❌ Winner +0");
-    if (pred.topBat && res.topBat && pred.topBat.trim().toLowerCase()===res.topBat.trim().toLowerCase())   { pts+=2; det.push("✅ Batter +2"); }  else det.push("❌ Batter +0");
-    if (pred.topBwl && res.topBwl && pred.topBwl.trim().toLowerCase()===res.topBwl.trim().toLowerCase())   { pts+=2; det.push("✅ Bowler +2"); }  else det.push("❌ Bowler +0");
-    total+=pts; breakdown.push({mid,m,pts,det});
+    let pts = 0, det = [];
+
+    // Handle no_result
+    if (res.status === "no_result") {
+      pts = 2;
+      det.push({ cat: "No Result", pts: 2, note: "Consolation" });
+      total += pts;
+      breakdown.push({ mid, m, pts, det });
+      continue;
+    }
+
+    // Winner
+    const winPts = pred.winner === res.winner ? SCORING.winner.exact : 0;
+    let winLabel = winPts > 0 ? "Correct" : "Wrong";
+    // Streak bonus
+    let bonusApplied = false;
+    let finalWinPts = winPts;
+    if (winPts > 0) {
+      const streak = getWinStreak(uid);
+      if (streak >= SCORING.streakBonus.threshold) {
+        finalWinPts = Math.round(winPts * SCORING.streakBonus.multiplier);
+        bonusApplied = true;
+        winLabel += ` (${streak} streak! 1.5x)`;
+      }
+    }
+    pts += finalWinPts;
+    det.push({ cat: "Winner", pts: finalWinPts, note: winLabel });
+
+    // Player predictions
+    const playerCats = [
+      { key: "topScorer", label: "Top Scorer", cfg: SCORING.topScorer },
+      { key: "bestEconomy", label: "Best Economy", cfg: SCORING.bestEconomy },
+      { key: "mostWickets", label: "Most Wickets", cfg: SCORING.mostWickets },
+    ];
+    for (const pc of playerCats) {
+      const correct = scorePlayer(pred[pc.key], res[pc.key]);
+      const p = correct ? pc.cfg.exact : 0;
+      pts += p;
+      det.push({ cat: pc.label, pts: p, note: correct ? "Correct" : (pred[pc.key] ? "Wrong" : "—") });
+    }
+
+    // Playing XI
+    for (const team of ["team1", "team2"]) {
+      const xi = scorePlayingXI(pred[`playingXI_${team}`], res[`playingXI_${team}`]);
+      pts += xi.pts;
+      det.push({ cat: `XI ${m[team]}`, pts: xi.pts, note: xi.correct > 0 ? `${xi.correct}/11 correct` : "—" });
+    }
+
+    // Numerics
+    const numCats = [
+      { key: "totalRuns_team1", label: `Runs ${m.team1}`, cfg: SCORING.totalRuns },
+      { key: "totalRuns_team2", label: `Runs ${m.team2}`, cfg: SCORING.totalRuns },
+      { key: "powerplay_team1", label: `PP ${m.team1}`, cfg: SCORING.powerplay },
+      { key: "powerplay_team2", label: `PP ${m.team2}`, cfg: SCORING.powerplay },
+      { key: "sixes", label: "Sixes", cfg: SCORING.sixes },
+      { key: "dotBalls", label: "Dot Balls", cfg: SCORING.dotBalls },
+    ];
+    for (const nc of numCats) {
+      const s = scoreNumeric(pred[nc.key], res[nc.key], nc.cfg);
+      pts += s.pts;
+      det.push({ cat: nc.label, pts: s.pts, note: s.label });
+    }
+
+    total += pts;
+    breakdown.push({ mid, m, pts, det });
   }
-  return {total,breakdown};
+  return { total, breakdown };
 }
+
 function leaderboard() {
   return Object.entries(participants)
-    .map(([uid,u]) => ({uid, name:u.name, ...calcPts(uid)}))
-    .sort((a,b) => b.total-a.total);
+    .map(([uid,u]) => ({ uid, name: u.name, ...calcPts(uid) }))
+    .sort((a,b) => b.total - a.total);
 }
 
 // ================================================================
@@ -279,15 +464,40 @@ function leaderboard() {
 function safeRender() {
   if (currentView && !["setup","login"].includes(currentView)) renderView();
 }
-function $root(html) { document.getElementById("root").innerHTML=html; }
+function $root(html) { document.getElementById("root").innerHTML = html; }
 
 function wrapApp(content) {
   return `
     ${content}
     <nav class="nav">
-      ${[["home","🏠","Home"],["predict","🎯","Predict"],["lb","🏆","Standings"],["insights","🧠","Insights"],["settings","⚙️","Settings"]]
+      ${[["home","🏠","Home"],["predict","🎯","Predict"],["stats","📊","Stats"],["lb","🏆","Board"]]
         .map(([v,i,l]) => `<button class="nav-btn${currentView===v?" active":""}" onclick="go('${v}')"><span class="ic">${i}</span>${l}</button>`).join("")}
     </nav>`;
+}
+
+function matchCard(nm, showCTA) {
+  const t1=TEAMS[nm.team1], t2=TEAMS[nm.team2];
+  const myPred = (predictions[nm.id]||{})[currentUser?.id];
+  const dl = deadlinePast(nm);
+  return `
+    <div class="mc">
+      <div class="ct">M${nm.no} · ${fmtDate(nm.date)} · ${nm.time} IST</div>
+      <div class="mc-teams">
+        <div class="mc-team">
+          <div class="tbadge" style="background:${t1.color}">${nm.team1}</div>
+          <div class="tname">${t1.name.split(" ").slice(-1)[0]}</div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="mc-team">
+          <div class="tbadge" style="background:${t2.color}">${nm.team2}</div>
+          <div class="tname">${t2.name.split(" ").slice(-1)[0]}</div>
+        </div>
+      </div>
+      <div class="mm"><span>📍 ${nm.venue}, ${nm.city}</span></div>
+      ${showCTA ? (!dl && !myPred ? `<button class="btn btn-p" style="margin-top:14px;" onclick="go('predict')">Make Your Predictions</button>` :
+        myPred ? `<div style="margin-top:12px"><span class="badge bg-g">Predicted: ${myPred.winner}</span></div>` :
+        `<div style="margin-top:12px"><span class="badge bg-m">Predictions closed</span></div>`) : ""}
+    </div>`;
 }
 
 // ================================================================
@@ -301,24 +511,25 @@ function renderSetup() {
     <div class="splash-sub">Predict winners, track your group's form, and follow every match — no money, just bragging rights.</div>
     <div style="width:100%;text-align:left;">
       <div class="card" style="margin:0 0 12px;">
-        <div class="ct">🔥 Connect Firebase (Free, 5 min setup)</div>
+        <div class="ct">Connect Firebase (Free, 5 min setup)</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
           1. Go to <strong style="color:var(--text)">console.firebase.google.com</strong><br>
           2. New Project → Add Web App → Copy config<br>
-          3. Build → Realtime Database → Create (Test mode)
+          3. Build → Realtime Database → Create (Test mode)<br>
+          4. Build → Authentication → Anonymous sign-in → Enable
         </p>
         <div class="fg"><label class="fl">API Key</label><input class="fi" id="s-key" placeholder="AIzaSy..." value="${c.apiKey||""}"></div>
         <div class="fg"><label class="fl">Database URL</label><input class="fi" id="s-db" placeholder="https://project-rtdb.firebaseio.com" value="${c.databaseURL||""}"></div>
         <div class="fg"><label class="fl">Project ID</label><input class="fi" id="s-pid" placeholder="my-ipl-predictor" value="${c.projectId||""}"></div>
-        <div class="fg"><label class="fl">Admin Password (to enter results)</label><input class="fi" id="s-pwd" type="password" placeholder="Choose a password" value="${c.adminPwd||""}"></div>
-        <button class="btn btn-p" onclick="doSetup()">Connect & Start 🏏</button>
+        <div class="fg"><label class="fl">Admin Password</label><input class="fi" id="s-pwd" type="password" placeholder="Choose a password" value="${c.adminPwd||""}"></div>
+        <button class="btn btn-p" onclick="doSetup()">Connect & Start</button>
       </div>
-      <button class="btn btn-s" onclick="demoMode()" style="margin-top:0;">👀 Try Demo Mode First</button>
+      <button class="btn btn-s" onclick="demoMode()" style="margin-top:0;">Try Demo Mode</button>
     </div>
   </div>`);
 }
 
-function doSetup() {
+async function doSetup() {
   const cfg = {
     apiKey:      document.getElementById("s-key").value.trim(),
     databaseURL: document.getElementById("s-db").value.trim(),
@@ -327,14 +538,22 @@ function doSetup() {
     storageBucket: document.getElementById("s-pid").value.trim()+".appspot.com",
     adminPwd:    document.getElementById("s-pwd").value.trim(),
   };
-  if (!cfg.apiKey||!cfg.databaseURL||!cfg.projectId) { toast("⚠️ Fill in all fields!"); return; }
-  if (!initFirebase(cfg)) { toast("❌ Firebase failed. Check config."); return; }
+  if (!cfg.apiKey||!cfg.databaseURL||!cfg.projectId) { toast("Fill in all fields!"); return; }
+  if (!initFirebase(cfg)) { toast("Firebase failed. Check config."); return; }
+  const uid = await ensureAuth();
+  if (!uid) { toast("Auth failed. Enable Anonymous Auth in Firebase."); return; }
   LS.set("fbConfig", cfg);
+  // Create a default group
+  const gid = "g_" + Date.now().toString(36);
+  await db.ref(`groups/${gid}/info`).set({ name: "IPL Predictor", createdBy: uid, createdAt: Date.now(), adminPwd: cfg.adminPwd });
+  LS.set("groupId", gid);
   renderLogin();
 }
 
 function demoMode() {
   LS.set("fbConfig",{demo:true});
+  LS.set("groupId", "demo");
+  groupId = "demo";
   renderLogin();
 }
 
@@ -345,22 +564,32 @@ function renderLogin() {
   $root(`<div class="splash">
     <div class="splash-logo">👤</div>
     <div class="splash-title">Join the League</div>
-    <div class="splash-sub">Enter your name to join your group's IPL Predictor</div>
+    <div class="splash-sub">Enter your name to start predicting</div>
     <div style="width:100%">
       <div class="fg"><input class="fi" id="u-name" placeholder="Your name" style="text-align:center;font-size:19px;padding:15px;" maxlength="20" autofocus></div>
-      <button class="btn btn-p" onclick="joinLeague()">Join & Start Predicting 🏏</button>
+      <button class="btn btn-p" onclick="joinLeague()">Join & Start Predicting</button>
     </div>
   </div>`);
   setTimeout(()=>{ const el=document.getElementById("u-name"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&joinLeague()); },100);
 }
 
-function joinLeague() {
+async function joinLeague() {
   const name = document.getElementById("u-name")?.value.trim();
-  if (!name) { toast("⚠️ Enter your name!"); return; }
-  const uid = "u"+Date.now()+Math.random().toString(36).slice(2,5);
-  currentUser = {id:uid, name};
+  if (!name) { toast("Enter your name!"); return; }
+  let uid;
+  if (db) {
+    uid = await ensureAuth();
+    if (!uid) { uid = "u"+Date.now()+Math.random().toString(36).slice(2,5); }
+  } else {
+    uid = "u"+Date.now()+Math.random().toString(36).slice(2,5);
+  }
+  currentUser = { id: uid, name };
   LS.set("user", currentUser);
-  fbSet(`participants/${uid}`, {name, joined:Date.now()}).then(()=>go("home"));
+  if (groupId) {
+    await fbSet(`members/${uid}`, { name, joined: Date.now() });
+    if (groupId !== "demo") listenToGroup(groupId);
+  }
+  go("home");
 }
 
 // ================================================================
@@ -368,65 +597,77 @@ function joinLeague() {
 // ================================================================
 function renderHome() {
   const nm = getNextMatch();
-  const t1=TEAMS[nm.team1], t2=TEAMS[nm.team2];
   const mdt = new Date(nm.date+"T"+nm.time+":00+05:30");
-  const myPred = (predictions[nm.id]||{})[currentUser.id];
-  const dl = deadlinePast(nm);
+  const p = PITCH[nm.city] || PITCH["Mumbai"];
+  const apiKey = LS.get("claudeKey")||"";
+  const hasKey = !!apiKey;
 
-  const recentHtml = Object.keys(results).slice(-3).reverse().map(mid=>{
-    const r=results[mid], m=getMatch(mid); if(!m)return"";
-    return `<div class="mrc">
-      <div class="mrc-hdr"><strong>${m.team1} vs ${m.team2}</strong><span class="badge bg-g">${r.winner} won</span></div>
-      <div style="font-size:12px;color:var(--muted)">🏏 ${r.topBat||"—"} &nbsp;•&nbsp; 🎳 ${r.topBwl||"—"}</div>
-    </div>`;
-  }).join("");
+  // Check for new results banner
+  const lastSeen = LS.get("lastResultSeen") || 0;
+  const newResults = Object.keys(results).filter(mid => {
+    const r = results[mid]; return r && (r.ts || 0) > lastSeen;
+  });
 
   $root(wrapApp(`
-    <div class="hdr"><div class="hdr-title">🏏 IPL 2026</div><div class="hdr-badge">SEASON LIVE</div></div>
-
-    <div class="mc">
-      <div class="ct">⚡ NEXT MATCH — M${nm.no}</div>
-      <div class="mc-teams">
-        <div class="mc-team">
-          <div class="tbadge" style="background:${t1.color}">${nm.team1}</div>
-          <div class="tname">${t1.name.split(" ").slice(-1)[0]}</div>
-        </div>
-        <div class="vs">VS</div>
-        <div class="mc-team">
-          <div class="tbadge" style="background:${t2.color}">${nm.team2}</div>
-          <div class="tname">${t2.name.split(" ").slice(-1)[0]}</div>
-        </div>
+    <div class="hdr">
+      <div class="hdr-title">🏏 IPL 2026</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="hdr-badge">SEASON LIVE</div>
+        <button class="hdr-icon" onclick="go('admin')" title="Settings">⚙️</button>
       </div>
-      <div class="mm"><span>📅 ${fmtDate(nm.date)}</span><span>🕖 ${nm.time} IST</span></div>
-      <div class="mm" style="margin-top:4px"><span>📍 ${nm.venue}, ${nm.city}</span></div>
-      ${!dl && !myPred ? `<button class="btn btn-p" style="margin-top:14px;" onclick="go('predict')">Make Your Prediction →</button>` :
-        myPred ? `<div style="margin-top:12px"><span class="badge bg-g">✅ Predicted: ${myPred.winner}</span></div>` :
-        `<div style="margin-top:12px"><span class="badge bg-m">⏰ Predictions closed</span></div>`}
     </div>
 
-    <div class="cd"><div class="cd-lbl">Match starts in</div><div class="cd-time" id="cd-t">--:--:--</div></div>
+    ${newResults.length > 0 ? `<div class="banner" onclick="LS.set('lastResultSeen',Date.now());go('stats')">
+      New results posted! Tap to see how you did →
+    </div>` : ""}
 
-    <div class="sh"><h2>📋 Schedule</h2></div>
-    <div style="padding:0 16px">
-      ${MATCHES.map(m=>`<div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
-        <div style="width:28px;font-size:11px;color:var(--muted);font-weight:700">M${m.no}</div>
-        <div style="flex:1"><div style="font-weight:600;font-size:13px">${m.team1} vs ${m.team2}</div>
-        <div style="font-size:11px;color:var(--muted)">${fmtDate(m.date)} · ${m.city}</div></div>
-        ${results[m.id]?`<span class="badge bg-g" style="font-size:10px">Done</span>`:`<span class="badge bg-m" style="font-size:10px">${fmtDate(m.date)}</span>`}
-      </div>`).join("")}
-      <p style="font-size:11px;color:var(--muted);padding:10px 0;text-align:center">More fixtures TBA by BCCI</p>
-    </div>
+    ${matchCard(nm, true)}
 
-    ${recentHtml?`<div class="divider"></div><div class="sh"><h2>🏆 Recent Results</h2></div><div style="padding:0 16px 12px">${recentHtml}</div>`:""}
+    <div class="cd"><div class="cd-lbl">Predictions close in</div><div class="cd-time" id="cd-t">--:--:--</div></div>
 
-    <div style="padding:0 16px 12px">
-      <a href="https://www.cricbuzz.com/cricket-match/live-scores" target="_blank" class="btn btn-s" style="display:block;text-align:center;text-decoration:none">📺 Live Scores on Cricbuzz ↗</a>
+    <!-- Chatbot -->
+    <div class="card">
+      <div class="ct">AI Cricket Analyst</div>
+
+      ${!hasKey ? `
+      <div class="api-box">
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Get AI analysis on pitch, matchups, player form & injuries. Sources are always cited.</p>
+        <div style="display:flex;gap:8px">
+          <input class="fi" id="ak-in" type="password" placeholder="Claude API key (sk-ant-...)" style="flex:1;font-size:13px">
+          <button class="btn btn-p btn-sm" onclick="saveKey()">Save</button>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin-top:7px">Free key at <strong style="color:var(--text)">console.anthropic.com</strong></p>
+      </div>` : `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span class="badge bg-g">AI Active</span>
+        <button onclick="clearKey()" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer">Change key</button>
+      </div>`}
+
+      <div class="chat-wrap" id="chat-el">
+        <div class="cm bot"><div class="cb">Ask me about pitch conditions, player form, injuries, team matchups — I'll cite my sources.</div></div>
+        ${chatHistory.map(m=>`<div class="cm ${m.role}"><div class="cb">${m.role==="bot"?mdLinks(m.content):m.content}</div></div>`).join("")}
+      </div>
+
+      <div class="ci-row">
+        <input class="fi" id="ci" placeholder="Ask about pitch, teams, players..." onkeydown="if(event.key==='Enter')doChat()" style="font-size:13px">
+        <button class="csend" onclick="doChat()">➤</button>
+      </div>
+
+      <div class="quick-btns">
+        ${[`Pitch analysis for ${nm.city}`,`${nm.team1} vs ${nm.team2} prediction`,`Injury updates`,`Playing XI prediction`]
+          .map(q=>`<button class="btn btn-s btn-sm" onclick="askQ(${JSON.stringify(q)})">${q}</button>`).join("")}
+      </div>
     </div>
   `));
 
+  // Countdown
   if (countdownInterval) clearInterval(countdownInterval);
   const update = () => { const el=document.getElementById("cd-t"); if(!el){clearInterval(countdownInterval);return;} el.textContent=fmtCD(mdt); };
   update(); countdownInterval=setInterval(update,1000);
+
+  // Auto-scroll chat
+  const ce=document.getElementById("chat-el"); if(ce) ce.scrollTop=ce.scrollHeight;
+
 }
 
 // ================================================================
@@ -438,42 +679,36 @@ function renderPredict() {
   const myPred = (predictions[nm.id]||{})[currentUser.id];
   const dl = deadlinePast(nm);
 
-  const pastHtml = MATCHES.slice().reverse().filter(m=>results[m.id]&&(predictions[m.id]||{})[currentUser.id]).map(m=>{
-    const p=(predictions[m.id]||{})[currentUser.id], r=results[m.id];
-    let pts=0;
-    if(p.winner===r.winner) pts+=3;
-    if(p.topBat&&r.topBat&&p.topBat.trim().toLowerCase()===r.topBat.trim().toLowerCase()) pts+=2;
-    if(p.topBwl&&r.topBwl&&p.topBwl.trim().toLowerCase()===r.topBwl.trim().toLowerCase()) pts+=2;
-    return `<div class="mrc">
-      <div class="mrc-hdr"><strong>${m.team1} vs ${m.team2}</strong><span class="badge ${pts>0?"bg-g":"bg-m"}">+${pts} pts</span></div>
-      <div style="font-size:12px;color:var(--muted)">My pick: ${p.winner} · 🏏${p.topBat||"—"} · 🎳${p.topBwl||"—"}</div>
-      <div style="font-size:12px;color:var(--green);margin-top:3px">Result: ${r.winner} won · 🏏${r.topBat||"—"} · 🎳${r.topBwl||"—"}</div>
-    </div>`;
-  }).join("");
+  if (dl) {
+    $root(wrapApp(`
+      <div class="hdr"><div class="hdr-title">Predictions</div><div class="hdr-badge">LOCKED</div></div>
+      ${matchCard(nm, false)}
+      <div class="card"><p style="text-align:center;color:var(--muted)">Predictions are closed for this match.</p></div>
+      ${myPred ? renderPredSummary(nm, myPred) : ""}
+    `));
+    return;
+  }
+
+  if (myPred && !myPred._editing) {
+    $root(wrapApp(`
+      <div class="hdr"><div class="hdr-title">Predictions</div><div class="hdr-badge">SUBMITTED</div></div>
+      ${matchCard(nm, false)}
+      ${renderPredSummary(nm, myPred)}
+      <div style="padding:0 16px 16px">
+        <button class="btn btn-s" onclick="editPred('${nm.id}')">Edit Prediction</button>
+      </div>
+    `));
+    return;
+  }
 
   $root(wrapApp(`
-    <div class="hdr"><div class="hdr-title">🎯 Predictions</div></div>
+    <div class="hdr"><div class="hdr-title">Predictions</div><div class="hdr-badge">M${nm.no}</div></div>
+    ${matchCard(nm, false)}
 
-    <div class="mc" style="margin-bottom:8px">
-      <div class="ct">M${nm.no} · ${fmtDate(nm.date)}</div>
-      <div class="mc-teams">
-        <div class="mc-team"><div class="tbadge" style="background:${t1.color}">${nm.team1}</div><div class="tname">${t1.name.split(" ").slice(-1)[0]}</div></div>
-        <div class="vs">VS</div>
-        <div class="mc-team"><div class="tbadge" style="background:${t2.color}">${nm.team2}</div><div class="tname">${t2.name.split(" ").slice(-1)[0]}</div></div>
-      </div>
-      <div class="mm"><span>📍 ${nm.venue}, ${nm.city}</span></div>
-    </div>
-
-    ${dl ? `<div class="card"><p style="text-align:center;color:var(--muted)">⏰ Predictions are closed for this match.</p></div>`
-      : myPred ? `<div class="card">
-        <div class="ct">✅ YOUR PREDICTION</div>
-        <div style="margin-bottom:10px;font-size:15px"><strong>Winner:</strong> ${myPred.winner} <span class="badge bg-o" style="margin-left:6px">${TEAMS[myPred.winner]?.color?'':''}${myPred.winner}</span></div>
-        <div style="margin-bottom:6px;font-size:14px">🏏 <strong>Top Batter:</strong> ${myPred.topBat||"Not picked"}</div>
-        <div style="margin-bottom:16px;font-size:14px">🎳 <strong>Top Bowler:</strong> ${myPred.topBwl||"Not picked"}</div>
-        <button class="btn btn-s" onclick="editPred('${nm.id}')">✏️ Edit Prediction</button>
-      </div>`
-      : `<div class="card">
-        <div class="ct">🏆 Who wins?</div>
+    <div style="padding:0 16px">
+      <!-- Winner -->
+      <div class="pred-section">
+        <div class="fl">Who wins? (+${SCORING.winner.exact} pts)</div>
         <div class="tpicker">
           <div class="toption" id="pick-${nm.team1}" onclick="pickTeam('${nm.team1}')">
             <div class="tbadge" style="background:${t1.color};margin:0 auto 8px">${nm.team1}</div>
@@ -484,19 +719,68 @@ function renderPredict() {
             <div style="font-weight:800;font-size:13px">${t2.name.split(" ").slice(-1)[0]}</div>
           </div>
         </div>
-        <div class="fg" style="margin-top:16px"><label class="fl">🏏 Top Batter (optional)</label><input class="fi" id="p-bat" placeholder="e.g. Virat Kohli"></div>
-        <div class="fg"><label class="fl">🎳 Top Bowler (optional)</label><input class="fi" id="p-bwl" placeholder="e.g. Jasprit Bumrah"></div>
-        <div style="background:var(--dark3);border-radius:var(--sm);padding:12px;margin-bottom:16px;font-size:12px">
-          <div style="font-weight:700;color:var(--text);margin-bottom:6px">🎯 Points per match</div>
-          <div class="pts-row"><span>Correct winner</span><span class="pts-v">+3 pts</span></div>
-          <div class="pts-row"><span>Correct top batter</span><span class="pts-v">+2 pts</span></div>
-          <div class="pts-row"><span>Correct top bowler</span><span class="pts-v">+2 pts</span></div>
-        </div>
-        <button class="btn btn-p" onclick="submitPred('${nm.id}')">Submit Prediction 🎯</button>
-      </div>`}
+      </div>
 
-    ${pastHtml?`<div class="sh"><h2>📜 My Past Picks</h2></div><div style="padding:0 16px 12px">${pastHtml}</div>`:""}
+      <!-- Player predictions -->
+      <div class="pred-section">
+        <div class="fl">Player Predictions</div>
+        <div class="fg"><label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">Highest Run Scorer (+${SCORING.topScorer.exact} pts)</label><input class="fi" id="p-topScorer" placeholder="e.g. Virat Kohli"></div>
+        <div class="fg"><label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">Best Economy Bowler (+${SCORING.bestEconomy.exact} pts)</label><input class="fi" id="p-bestEconomy" placeholder="e.g. Jasprit Bumrah"></div>
+        <div class="fg" style="margin-bottom:0"><label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">Most Wickets (+${SCORING.mostWickets.exact} pts)</label><input class="fi" id="p-mostWickets" placeholder="e.g. Rashid Khan"></div>
+      </div>
+
+      <!-- Numeric predictions -->
+      <div class="pred-section">
+        <div class="fl">Number Predictions (within range = partial pts)</div>
+        <div class="num-grid">
+          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team1} Total Runs</label><input class="fi" id="p-totalRuns_team1" type="number" placeholder="e.g. 175"></div>
+          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team2} Total Runs</label><input class="fi" id="p-totalRuns_team2" type="number" placeholder="e.g. 165"></div>
+          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team1} Powerplay</label><input class="fi" id="p-powerplay_team1" type="number" placeholder="e.g. 52"></div>
+          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team2} Powerplay</label><input class="fi" id="p-powerplay_team2" type="number" placeholder="e.g. 48"></div>
+          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Total Sixes (match)</label><input class="fi" id="p-sixes" type="number" placeholder="e.g. 14"></div>
+          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Total Dot Balls</label><input class="fi" id="p-dotBalls" type="number" placeholder="e.g. 120"></div>
+        </div>
+      </div>
+
+      <!-- Playing XI (optional, text-based) -->
+      <div class="pred-section">
+        <div class="fl">Playing XI (optional, comma-separated)</div>
+        <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team1} XI</label><textarea class="fi" id="p-xi1" rows="2" placeholder="Kohli, Faf, Maxwell, ..." style="font-size:13px;resize:vertical"></textarea></div>
+        <div class="fg" style="margin-bottom:0"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team2} XI</label><textarea class="fi" id="p-xi2" rows="2" placeholder="Abhishek, Head, Cummins, ..." style="font-size:13px;resize:vertical"></textarea></div>
+      </div>
+
+      <!-- Scoring rules -->
+      <div class="pred-section" style="background:rgba(255,107,0,0.06)">
+        <div class="fl">Scoring Rules</div>
+        <div class="pts-row"><span>Correct winner</span><span class="pts-v">+3 pts</span></div>
+        <div class="pts-row"><span>Correct top scorer / economy / wickets</span><span class="pts-v">+4 pts each</span></div>
+        <div class="pts-row"><span>Playing XI (8+ correct per team)</span><span class="pts-v">+3-5 pts</span></div>
+        <div class="pts-row"><span>Numeric predictions (exact)</span><span class="pts-v">+3 pts</span></div>
+        <div class="pts-row"><span>Numeric predictions (close)</span><span class="pts-v">+1-2 pts</span></div>
+        <div class="pts-row"><span>3+ winner streak bonus</span><span class="pts-v">1.5x</span></div>
+      </div>
+
+      <button class="btn btn-p" style="margin-bottom:16px" onclick="submitPred('${nm.id}')">Submit Prediction</button>
+    </div>
   `));
+}
+
+function renderPredSummary(m, pred) {
+  return `<div class="card">
+    <div class="ct">Your Prediction</div>
+    <div class="pts-row"><span>Winner</span><span style="font-weight:700">${pred.winner || "—"}</span></div>
+    <div class="pts-row"><span>Top Scorer</span><span>${pred.topScorer || "—"}</span></div>
+    <div class="pts-row"><span>Best Economy</span><span>${pred.bestEconomy || "—"}</span></div>
+    <div class="pts-row"><span>Most Wickets</span><span>${pred.mostWickets || "—"}</span></div>
+    <div class="pts-row"><span>${m.team1} Runs</span><span>${pred.totalRuns_team1 || "—"}</span></div>
+    <div class="pts-row"><span>${m.team2} Runs</span><span>${pred.totalRuns_team2 || "—"}</span></div>
+    <div class="pts-row"><span>${m.team1} Powerplay</span><span>${pred.powerplay_team1 || "—"}</span></div>
+    <div class="pts-row"><span>${m.team2} Powerplay</span><span>${pred.powerplay_team2 || "—"}</span></div>
+    <div class="pts-row"><span>Sixes</span><span>${pred.sixes || "—"}</span></div>
+    <div class="pts-row"><span>Dot Balls</span><span>${pred.dotBalls || "—"}</span></div>
+    ${pred.playingXI_team1?.length ? `<div class="pts-row"><span>${m.team1} XI</span><span style="font-size:11px">${pred.playingXI_team1.join(", ")}</span></div>` : ""}
+    ${pred.playingXI_team2?.length ? `<div class="pts-row"><span>${m.team2} XI</span><span style="font-size:11px">${pred.playingXI_team2.join(", ")}</span></div>` : ""}
+  </div>`;
 }
 
 function pickTeam(tid) {
@@ -506,15 +790,89 @@ function pickTeam(tid) {
 }
 
 function submitPred(mid) {
-  if (!selectedTeam) { toast("⚠️ Pick a winner first!"); return; }
-  const bat = document.getElementById("p-bat")?.value.trim();
-  const bwl = document.getElementById("p-bwl")?.value.trim();
-  fbSet(`predictions/${mid}/${currentUser.id}`, {winner:selectedTeam, topBat:bat||"", topBwl:bwl||"", ts:Date.now()})
-    .then(()=>{ selectedTeam=null; toast("✅ Prediction locked in!"); go("home"); });
+  if (!selectedTeam) { toast("Pick a winner first!"); return; }
+  const g = id => document.getElementById(id)?.value?.trim() || "";
+  const parseXI = id => {
+    const v = document.getElementById(id)?.value?.trim();
+    if (!v) return [];
+    return v.split(",").map(s=>s.trim()).filter(Boolean);
+  };
+
+  const pred = {
+    winner: selectedTeam,
+    topScorer: g("p-topScorer"),
+    bestEconomy: g("p-bestEconomy"),
+    mostWickets: g("p-mostWickets"),
+    totalRuns_team1: g("p-totalRuns_team1"),
+    totalRuns_team2: g("p-totalRuns_team2"),
+    powerplay_team1: g("p-powerplay_team1"),
+    powerplay_team2: g("p-powerplay_team2"),
+    sixes: g("p-sixes"),
+    dotBalls: g("p-dotBalls"),
+    playingXI_team1: parseXI("p-xi1"),
+    playingXI_team2: parseXI("p-xi2"),
+    ts: Date.now(),
+  };
+
+  fbSet(`predictions/${mid}/${currentUser.id}`, pred)
+    .then(()=>{ selectedTeam=null; toast("Prediction locked in!"); go("home"); });
 }
 
 function editPred(mid) {
   fbDel(`predictions/${mid}/${currentUser.id}`).then(()=>{ selectedTeam=null; renderPredict(); });
+}
+
+// ================================================================
+// STATS VIEW
+// ================================================================
+function renderStats() {
+  const { total, breakdown } = calcPts(currentUser.id);
+  const matchesPlayed = breakdown.length;
+  const board = leaderboard();
+  const myRank = board.findIndex(p=>p.uid===currentUser.id) + 1;
+  const streak = getWinStreak(currentUser.id);
+
+  $root(wrapApp(`
+    <div class="hdr"><div class="hdr-title">Your Stats</div></div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <div class="av" style="width:50px;height:50px;font-size:20px">${currentUser.name[0].toUpperCase()}</div>
+        <div>
+          <div style="font-weight:800;font-size:18px">${currentUser.name}</div>
+          <div style="font-size:12px;color:var(--muted)">${matchesPlayed} match${matchesPlayed!==1?"es":""} predicted</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+        <div style="background:var(--dark3);padding:12px 8px;border-radius:var(--sm)">
+          <div style="font-size:22px;font-weight:900;color:var(--orange)">${total}</div>
+          <div style="font-size:10px;color:var(--muted)">TOTAL PTS</div>
+        </div>
+        <div style="background:var(--dark3);padding:12px 8px;border-radius:var(--sm)">
+          <div style="font-size:22px;font-weight:900;color:var(--gold)">#${myRank||"—"}</div>
+          <div style="font-size:10px;color:var(--muted)">RANK</div>
+        </div>
+        <div style="background:var(--dark3);padding:12px 8px;border-radius:var(--sm)">
+          <div style="font-size:22px;font-weight:900;color:var(--green)">${streak}</div>
+          <div style="font-size:10px;color:var(--muted)">WIN STREAK</div>
+        </div>
+      </div>
+    </div>
+
+    ${breakdown.length === 0 ? `<div class="empty"><span class="ei">📊</span><p>No results yet!</p><p style="font-size:12px;margin-top:6px">Your prediction history appears here after match results are entered.</p></div>` :
+    breakdown.slice().reverse().map(b => `
+      <div class="card">
+        <div class="mrc-hdr">
+          <strong>M${b.m.no}: ${b.m.team1} vs ${b.m.team2}</strong>
+          <span class="badge ${b.pts>0?"bg-g":"bg-m"}">+${b.pts} pts</span>
+        </div>
+        ${b.det.map(d => `
+          <div class="pts-row">
+            <span>${d.cat}</span>
+            <span class="${d.pts>0?"pts-v":"pts-miss"}">${d.pts>0?"+"+d.pts:d.pts} <span style="font-weight:400;font-size:11px;color:var(--muted)">${d.note}</span></span>
+          </div>`).join("")}
+      </div>`).join("")}
+  `));
 }
 
 // ================================================================
@@ -524,9 +882,10 @@ function renderLeaderboard() {
   const board = leaderboard();
   const played = Object.keys(results).length;
   const medals = ["🥇","🥈","🥉"];
+  const memberCount = Object.keys(participants).length;
 
   $root(wrapApp(`
-    <div class="hdr"><div class="hdr-title">🏆 Standings</div><div class="hdr-badge">${played} PLAYED</div></div>
+    <div class="hdr"><div class="hdr-title">Leaderboard</div><div class="hdr-badge">${played} PLAYED</div></div>
 
     ${board.length===0 ? `<div class="empty"><span class="ei">🏏</span><p>No results yet!</p><p style="font-size:12px;margin-top:6px">Standings appear after the first match result is entered.</p></div>` : `
     <div class="card">
@@ -542,104 +901,193 @@ function renderLeaderboard() {
           <div style="text-align:right"><div class="lbpts">${p.total}</div><div style="font-size:10px;color:var(--muted)">pts</div></div>
         </div>`;
       }).join("")}
+    </div>`}
+
+    <div class="card">
+      <div class="ct">Group Info</div>
+      <div class="pts-row"><span>Members</span><span style="font-weight:700">${memberCount}</span></div>
+      <div class="pts-row"><span>Matches played</span><span style="font-weight:700">${played}</span></div>
+      <div class="pts-row"><span>Max pts/match</span><span style="font-weight:700">~37</span></div>
     </div>
 
-    ${board.find(p=>p.uid===currentUser.id)?.breakdown.length ? `
     <div class="card">
-      <div class="ct">📊 My Breakdown</div>
-      ${board.find(p=>p.uid===currentUser.id).breakdown.map(b=>`
-        <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-            <strong>${b.m.team1} vs ${b.m.team2}</strong>
-            <span class="badge ${b.pts>0?"bg-g":"bg-m"}">+${b.pts} pts</span>
-          </div>
-          <div style="color:var(--muted);font-size:11px">${b.det.join(" · ")}</div>
-        </div>`).join("")}
-    </div>`:""}`}
-
-    <div class="card">
-      <div class="ct">🎯 Scoring Rules</div>
+      <div class="ct">Scoring Rules</div>
       <div class="pts-row"><span>Correct winner</span><span class="pts-v">+3 pts</span></div>
-      <div class="pts-row"><span>Correct top batter</span><span class="pts-v">+2 pts</span></div>
-      <div class="pts-row"><span>Correct top bowler</span><span class="pts-v">+2 pts</span></div>
+      <div class="pts-row"><span>Correct top scorer / economy / wickets</span><span class="pts-v">+4 pts each</span></div>
+      <div class="pts-row"><span>Playing XI (per team, 8+ correct)</span><span class="pts-v">+3-5 pts</span></div>
+      <div class="pts-row"><span>Numeric (exact / close / near)</span><span class="pts-v">+3 / +2 / +1</span></div>
+      <div class="pts-row"><span>Winner streak bonus (3+)</span><span class="pts-v">1.5x</span></div>
     </div>
   `));
 }
 
 // ================================================================
-// INSIGHTS VIEW
+// ADMIN VIEW
 // ================================================================
-function renderInsights() {
-  const nm = getNextMatch();
-  const t1=TEAMS[nm.team1], t2=TEAMS[nm.team2];
-  const p = PITCH[nm.city] || PITCH["Mumbai"];
-  const apiKey = LS.get("claudeKey")||"";
-  const hasKey = !!apiKey;
+function renderAdmin() {
+  const cfg = LS.get("fbConfig")||{};
 
   $root(wrapApp(`
-    <div class="hdr"><div class="hdr-title">🧠 Match Insights</div></div>
+    <div class="hdr"><div class="hdr-title">Settings</div></div>
 
-    <div class="mc" style="margin-bottom:8px">
-      <div class="ct">M${nm.no}: ${nm.team1} vs ${nm.team2}</div>
-      <div style="font-size:13px;color:var(--muted)">📍 ${nm.venue}, ${nm.city}</div>
+    <div class="card">
+      <div class="ct">Profile</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <div class="av" style="width:50px;height:50px;font-size:20px">${currentUser.name[0].toUpperCase()}</div>
+        <div><div style="font-weight:800;font-size:18px">${currentUser.name}</div><div style="font-size:12px;color:var(--muted)">${db?"Connected":"Demo mode"}</div></div>
+      </div>
+      <button class="btn btn-s" onclick="changeName()">Change Name</button>
     </div>
 
     <div class="card">
-      <div class="ct">🏟️ Pitch Report — ${nm.city}</div>
-      ${[["🏏 Batting Friendly",p.bat],["🎳 Bowling Friendly",p.bowl],["🌀 Spin Factor",p.spin],["💨 Pace Factor",p.pace],["💧 Dew Factor",p.dew]].map(([l,v])=>`
-        <div class="ps">
-          <div style="font-size:12px;width:128px;color:var(--text)">${l}</div>
-          <div class="pbw"><div class="pb" style="width:${v}%"></div></div>
-          <div style="font-size:13px;font-weight:800;color:var(--orange);width:28px;text-align:right">${v}</div>
-        </div>`).join("")}
-      <p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">💡 ${p.note}</p>
+      <div class="ct">Share Group Link</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">Share a magic link — group members tap it and go straight to name entry.</p>
+      <button class="btn btn-p" onclick="generateGroupLink()" style="margin-bottom:8px">Share via WhatsApp</button>
+      <button class="btn btn-s" onclick="shareApp()">Copy Link</button>
     </div>
 
-    <div class="card">
-      <div class="ct">📰 Latest News & Injuries</div>
-      <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:12px">Get the latest team news, injury updates, and playing XI before each match.</p>
-      <a href="https://www.cricbuzz.com/cricket-series/9437/indian-premier-league-2026/news" target="_blank" class="btn btn-s" style="text-align:center;text-decoration:none;font-size:13px">📰 IPL News on Cricbuzz ↗</a>
-      <a href="https://sports.ndtv.com/ipl-2026" target="_blank" class="btn btn-s" style="text-align:center;text-decoration:none;font-size:13px;margin-top:8px">📰 IPL Updates on NDTV Sports ↗</a>
+    <div class="admin-box">
+      <div style="font-size:13px;font-weight:800;color:var(--orange);margin-bottom:10px">Admin — Enter Match Results</div>
+      ${isAdmin ? renderAdminPanel() : `
+        <div class="fg"><input class="fi" id="apwd" type="password" placeholder="Admin password"></div>
+        <button class="btn btn-p" onclick="checkPwd()">Unlock Admin</button>
+      `}
     </div>
 
+    ${isAdmin ? `
     <div class="card">
-      <div class="ct">🤖 AI Cricket Expert</div>
+      <div class="ct">Admin Actions</div>
+      <button class="btn btn-s" onclick="shareResults()" style="margin-bottom:8px">Share Results to WhatsApp</button>
+      <button class="btn btn-s" onclick="shareReminder()">Remind Group to Predict</button>
+    </div>` : ""}
 
-      ${!hasKey ? `
-      <div class="api-box">
-        <div style="font-size:12px;color:var(--gold);font-weight:700;margin-bottom:6px">⚡ Unlock AI Analysis</div>
-        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Get expert AI analysis on pitch conditions, team matchups, player form & toss impact.</p>
-        <div style="display:flex;gap:8px">
-          <input class="fi" id="ak-in" type="password" placeholder="sk-ant-..." style="flex:1;font-size:13px">
-          <button class="btn btn-p btn-sm" onclick="saveKey()">Save</button>
-        </div>
-        <p style="font-size:11px;color:var(--muted);margin-top:7px">Free key at <strong style="color:var(--text)">console.anthropic.com</strong></p>
-      </div>` : `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <span class="badge bg-g">✅ AI Active</span>
-        <button onclick="clearKey()" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer">Change key</button>
-      </div>`}
+    <div class="card">
+      <div class="ct">AI Settings</div>
+      <div class="fg"><label class="fl">Claude API Key</label>
+      <div style="display:flex;gap:8px">
+        <input class="fi" id="admin-ak" type="password" value="${LS.get("claudeKey")||""}" placeholder="sk-ant-..." style="flex:1;font-size:13px">
+        <button class="btn btn-p btn-sm" onclick="LS.set('claudeKey',document.getElementById('admin-ak').value.trim());toast('Key saved!')">Save</button>
+      </div></div>
+    </div>
 
-      <div class="chat-wrap" id="chat-el">
-        <div class="cm bot"><div class="cb">👋 Ask me anything about IPL 2026! Pitch conditions, team strategies, who to pick as top batter — I'm here to help your predictions.</div></div>
-        ${chatHistory.map(m=>`<div class="cm ${m.role}"><div class="cb">${m.content}</div></div>`).join("")}
-      </div>
-
-      <div class="ci-row">
-        <input class="fi" id="ci" placeholder="Ask about pitch, teams, players..." onkeydown="if(event.key==='Enter')doChat()" style="font-size:13px">
-        <button class="csend" onclick="doChat()">➤</button>
-      </div>
-
-      <div class="quick-btns">
-        ${[`Pitch analysis for ${nm.city}`,`${nm.team1} vs ${nm.team2} prediction`,`Who should I pick as top batter?`,`How does toss affect this match?`]
-          .map(q=>`<button class="btn btn-s btn-sm" onclick="askQ(${JSON.stringify(q)})">💬 ${q}</button>`).join("")}
-      </div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="ct">Connection</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">${db?"Firebase connected — predictions sync in real time.":"Demo mode (local only)."}</p>
+      <button class="btn btn-s" onclick="resetApp()">Reset App</button>
     </div>
   `));
-
-  const ce=document.getElementById("chat-el"); if(ce) ce.scrollTop=ce.scrollHeight;
 }
 
+function renderAdminPanel() {
+  return `
+    <p style="font-size:12px;color:var(--green);margin-bottom:12px">Admin access granted.</p>
+    <div class="fg"><label class="fl">Select Match</label>
+      <select class="fi" id="adm-m" onchange="loadAdmMatch()">
+        <option value="">-- Select match --</option>
+        ${MATCHES.map(m=>`<option value="${m.id}">${m.no}. ${m.team1} vs ${m.team2} (${fmtDate(m.date)})${results[m.id]?" ✅":""}</option>`).join("")}
+      </select>
+    </div>
+    <div id="adm-form" style="display:none">
+      <div class="fg"><label class="fl">Status</label>
+        <select class="fi" id="adm-status">
+          <option value="completed">Completed</option>
+          <option value="no_result">No Result / Abandoned</option>
+          <option value="dls">DLS Method</option>
+          <option value="super_over">Super Over</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Winner</label>
+        <select class="fi" id="adm-w"><option value="">-- Pick winner --</option></select>
+      </div>
+      <div class="fg"><label class="fl">Highest Run Scorer</label><input class="fi" id="adm-topScorer" placeholder="Player name"></div>
+      <div class="fg"><label class="fl">Best Economy Bowler</label><input class="fi" id="adm-bestEconomy" placeholder="Player name"></div>
+      <div class="fg"><label class="fl">Most Wickets</label><input class="fi" id="adm-mostWickets" placeholder="Player name"></div>
+      <div class="num-grid">
+        <div class="fg"><label class="fl" id="adm-tr1-lbl">Team1 Runs</label><input class="fi" id="adm-tr1" type="number" placeholder="175"></div>
+        <div class="fg"><label class="fl" id="adm-tr2-lbl">Team2 Runs</label><input class="fi" id="adm-tr2" type="number" placeholder="165"></div>
+        <div class="fg"><label class="fl" id="adm-pp1-lbl">Team1 PP</label><input class="fi" id="adm-pp1" type="number" placeholder="52"></div>
+        <div class="fg"><label class="fl" id="adm-pp2-lbl">Team2 PP</label><input class="fi" id="adm-pp2" type="number" placeholder="48"></div>
+        <div class="fg"><label class="fl">Total Sixes</label><input class="fi" id="adm-sixes" type="number" placeholder="14"></div>
+        <div class="fg"><label class="fl">Total Dot Balls</label><input class="fi" id="adm-dotBalls" type="number" placeholder="120"></div>
+      </div>
+      <div class="fg"><label class="fl" id="adm-xi1-lbl">Team1 Playing XI (comma-separated)</label><textarea class="fi" id="adm-xi1" rows="2" placeholder="Player1, Player2, ..." style="font-size:13px"></textarea></div>
+      <div class="fg"><label class="fl" id="adm-xi2-lbl">Team2 Playing XI (comma-separated)</label><textarea class="fi" id="adm-xi2" rows="2" placeholder="Player1, Player2, ..." style="font-size:13px"></textarea></div>
+      <button class="btn btn-p" onclick="saveResult()">Save Result & Update Points</button>
+    </div>
+  `;
+}
+
+function loadAdmMatch() {
+  const mid=document.getElementById("adm-m")?.value; if(!mid)return;
+  const m=getMatch(mid); if(!m)return;
+  const form=document.getElementById("adm-form"); if(!form)return;
+  form.style.display="block";
+
+  // Update labels
+  const setLbl = (id, txt) => { const el=document.getElementById(id); if(el) el.textContent=txt; };
+  setLbl("adm-tr1-lbl", `${m.team1} Total Runs`);
+  setLbl("adm-tr2-lbl", `${m.team2} Total Runs`);
+  setLbl("adm-pp1-lbl", `${m.team1} Powerplay`);
+  setLbl("adm-pp2-lbl", `${m.team2} Powerplay`);
+  setLbl("adm-xi1-lbl", `${m.team1} Playing XI`);
+  setLbl("adm-xi2-lbl", `${m.team2} Playing XI`);
+
+  const ws=document.getElementById("adm-w");
+  ws.innerHTML=`<option value="">-- Pick winner --</option>
+    <option value="${m.team1}" ${results[mid]?.winner===m.team1?"selected":""}>${m.team1}</option>
+    <option value="${m.team2}" ${results[mid]?.winner===m.team2?"selected":""}>${m.team2}</option>`;
+
+  // Pre-fill if results exist
+  if(results[mid]){
+    const r = results[mid];
+    const setVal = (id, val) => { const el=document.getElementById(id); if(el) el.value=val||""; };
+    setVal("adm-status", r.status||"completed");
+    setVal("adm-topScorer", r.topScorer);
+    setVal("adm-bestEconomy", r.bestEconomy);
+    setVal("adm-mostWickets", r.mostWickets);
+    setVal("adm-tr1", r.totalRuns_team1);
+    setVal("adm-tr2", r.totalRuns_team2);
+    setVal("adm-pp1", r.powerplay_team1);
+    setVal("adm-pp2", r.powerplay_team2);
+    setVal("adm-sixes", r.sixes);
+    setVal("adm-dotBalls", r.dotBalls);
+    setVal("adm-xi1", (r.playingXI_team1||[]).join(", "));
+    setVal("adm-xi2", (r.playingXI_team2||[]).join(", "));
+  }
+}
+
+function saveResult() {
+  const mid=document.getElementById("adm-m")?.value;
+  const winner=document.getElementById("adm-w")?.value;
+  const status=document.getElementById("adm-status")?.value||"completed";
+
+  if (!mid) { toast("Select a match!"); return; }
+  if (status !== "no_result" && !winner) { toast("Select a winner!"); return; }
+
+  const g = id => document.getElementById(id)?.value?.trim()||"";
+  const parseXI = id => {
+    const v = document.getElementById(id)?.value?.trim();
+    if (!v) return [];
+    return v.split(",").map(s=>s.trim()).filter(Boolean);
+  };
+
+  const result = {
+    status, winner: winner||"",
+    topScorer: g("adm-topScorer"), bestEconomy: g("adm-bestEconomy"), mostWickets: g("adm-mostWickets"),
+    totalRuns_team1: g("adm-tr1"), totalRuns_team2: g("adm-tr2"),
+    powerplay_team1: g("adm-pp1"), powerplay_team2: g("adm-pp2"),
+    sixes: g("adm-sixes"), dotBalls: g("adm-dotBalls"),
+    playingXI_team1: parseXI("adm-xi1"), playingXI_team2: parseXI("adm-xi2"),
+    ts: Date.now(),
+  };
+
+  fbSet(`results/${mid}`, result)
+    .then(()=>{ toast("Result saved! Points updated."); renderAdmin(); });
+}
+
+// ================================================================
+// CHAT / AI
+// ================================================================
 async function doChat() {
   const inp=document.getElementById("ci"); if(!inp)return;
   const msg=inp.value.trim(); if(!msg)return;
@@ -652,144 +1100,145 @@ async function askQ(q) {
   const apiKey=LS.get("claudeKey")||"";
 
   if (!apiKey) {
-    chatHistory.push({role:"bot",content:"⚡ Add your Claude API key above to enable AI analysis!"});
-    renderInsights(); return;
+    chatHistory.push({role:"bot",content:"Add your Claude API key in Settings to enable AI analysis."});
+    renderHome(); return;
   }
 
-  chatHistory.push({role:"bot",content:"⏳ Analysing…"});
-  renderInsights();
+  chatHistory.push({role:"bot",content:"Analysing..."});
+  renderHome();
 
-  const sysMsg = `${CHAT_CONTEXT.content}\n\nCurrent match context: ${nm.team1} vs ${nm.team2} at ${nm.venue}, ${nm.city} on ${nm.date}. Pitch: batting=${p.bat}/100, bowling=${p.bowl}/100, spin=${p.spin}/100, pace=${p.pace}/100, dew=${p.dew}/100. Pitch notes: ${p.note}`;
+  const today = new Date().toISOString().slice(0,10);
+  const sysMsg = `${CHAT_CONTEXT.content}\n\nToday's date: ${today}\n\n[MATCH DATA]\nMatch: ${nm.team1} vs ${nm.team2}\nVenue: ${nm.venue}, ${nm.city}\nDate: ${nm.date}\nPitch: batting=${p.bat}/100, bowling=${p.bowl}/100, spin=${p.spin}/100, pace=${p.pace}/100, dew=${p.dew}/100\nPitch notes: ${p.note}`;
 
   try {
-    // Try Netlify function proxy first (works when deployed to Netlify)
     const res = await fetch("/api/chat", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({message:q, apiKey, systemPrompt:sysMsg})
+      body: JSON.stringify({message:q, apiKey, systemPrompt:sysMsg, team1:nm.team1, team2:nm.team2})
     });
     if (res.ok) {
       const d = await res.json();
       chatHistory[chatHistory.length-1] = {role:"bot", content:d.content};
     } else { throw new Error("proxy unavailable"); }
   } catch(e) {
-    // Pitch-data fallback (no backend needed)
     chatHistory[chatHistory.length-1] = {role:"bot",
-      content:`📊 ${nm.city} pitch insight:\n${p.note}\n\nBatting score: ${p.bat}/100 · Spin: ${p.spin}/100 · Pace: ${p.pace}/100 · Dew: ${p.dew}/100\n\n🚀 For live AI analysis, deploy this app to Netlify — the chatbot will connect automatically with your saved API key!`};
+      content:`Pitch insight for ${nm.city}:\n${p.note}\n\nBatting: ${p.bat}/100 · Spin: ${p.spin}/100 · Pace: ${p.pace}/100 · Dew: ${p.dew}/100\n\nFor live AI analysis, deploy to Netlify with your Claude API key.`};
   }
-  renderInsights();
+  renderHome();
 }
 
-function saveKey() { const v=document.getElementById("ak-in")?.value.trim(); if(v){LS.set("claudeKey",v);toast("✅ API key saved!");renderInsights();} }
-function clearKey() { LS.del("claudeKey"); renderInsights(); }
+function saveKey() { const v=document.getElementById("ak-in")?.value.trim(); if(v){LS.set("claudeKey",v);toast("API key saved!");renderHome();} }
+function clearKey() { LS.del("claudeKey"); renderHome(); }
 
 // ================================================================
-// SETTINGS VIEW
+// NEWS
 // ================================================================
-function renderSettings() {
-  const cfg = LS.get("fbConfig")||{};
-  $root(wrapApp(`
-    <div class="hdr"><div class="hdr-title">⚙️ Settings</div></div>
-
-    <div class="card">
-      <div class="ct">👤 Profile</div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-        <div class="av" style="width:50px;height:50px;font-size:20px">${currentUser.name[0].toUpperCase()}</div>
-        <div><div style="font-weight:800;font-size:18px">${currentUser.name}</div><div style="font-size:12px;color:var(--muted)">${db?"Connected to Firebase":"Demo mode"}</div></div>
+function renderNewsItems(articles) {
+  if (!articles || articles.length === 0) {
+    return `<div class="news-loading">No news found. Try refreshing.</div>`;
+  }
+  return articles.map(a => `
+    <a class="news-item" href="${a.link}" target="_blank" rel="noopener">
+      <div class="news-dot"></div>
+      <div class="news-body">
+        <div class="news-title">${a.title}</div>
+        <div class="news-meta">${a.source}${a.timeAgo ? " · " + a.timeAgo : ""}</div>
       </div>
-      <button class="btn btn-s" onclick="changeName()">✏️ Change Name</button>
-    </div>
-
-    <div class="admin-box">
-      <div style="font-size:13px;font-weight:800;color:var(--orange);margin-bottom:10px">🔐 Admin — Enter Match Results</div>
-      ${isAdmin ? renderAdminPanel() : `
-        <div class="fg"><input class="fi" id="apwd" type="password" placeholder="Admin password"></div>
-        <button class="btn btn-p" onclick="checkPwd()">Unlock Admin</button>
-      `}
-    </div>
-
-    <div class="card">
-      <div class="ct">🔥 Connection</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">${db?"✅ Firebase connected — all predictions sync in real time.":"⚠️ Running in demo mode (predictions only saved on this device)."}</p>
-      <button class="btn btn-s" onclick="resetApp()">🔄 Reconfigure / Reset</button>
-    </div>
-
-    <div class="card" style="margin-bottom:20px">
-      <div class="ct">📤 Share With Group</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">Send your Netlify link in the WhatsApp group. Everyone joins by entering their name — no accounts needed!</p>
-      <button class="btn btn-s" onclick="shareApp()">🔗 Copy App Link</button>
-    </div>
-  `));
+    </a>`).join("");
 }
 
-function renderAdminPanel() {
-  return `
-    <p style="font-size:12px;color:var(--green);margin-bottom:12px">✅ Admin access granted. Enter results after each match to update points.</p>
-    <div class="fg"><label class="fl">Select Match</label>
-      <select class="fi" id="adm-m" onchange="loadAdmMatch()">
-        <option value="">-- Select match --</option>
-        ${MATCHES.map(m=>`<option value="${m.id}">${m.no}. ${m.team1} vs ${m.team2} (${fmtDate(m.date)})${results[m.id]?" ✅":""}</option>`).join("")}
-      </select>
-    </div>
-    <div id="adm-form" style="display:none">
-      <div class="fg"><label class="fl">Winner</label>
-        <select class="fi" id="adm-w"><option value="">-- Pick winner --</option></select>
-      </div>
-      <div class="fg"><label class="fl">Top Batter</label><input class="fi" id="adm-b" placeholder="Player name"></div>
-      <div class="fg"><label class="fl">Top Bowler</label><input class="fi" id="adm-bwl" placeholder="Player name"></div>
-      <button class="btn btn-p" onclick="saveResult()">💾 Save Result & Update Points</button>
-    </div>
-  `;
-}
-
-function loadAdmMatch() {
-  const mid=document.getElementById("adm-m")?.value; if(!mid)return;
-  const m=getMatch(mid); if(!m)return;
-  const form=document.getElementById("adm-form"); if(!form)return;
-  form.style.display="block";
-  const ws=document.getElementById("adm-w");
-  ws.innerHTML=`<option value="">-- Pick winner --</option>
-    <option value="${m.team1}" ${results[mid]?.winner===m.team1?"selected":""}>${m.team1}</option>
-    <option value="${m.team2}" ${results[mid]?.winner===m.team2?"selected":""}>${m.team2}</option>`;
-  if(results[mid]){
-    document.getElementById("adm-b").value=results[mid].topBat||"";
-    document.getElementById("adm-bwl").value=results[mid].topBwl||"";
+async function loadNews(team1, team2) {
+  const el = document.getElementById("news-widget"); if (!el) return;
+  el.innerHTML = `<div class="news-loading">Loading...</div>`;
+  try {
+    const res = await fetch(`/api/news?teams=${encodeURIComponent(team1 + " " + team2)}`);
+    const articles = res.ok ? await res.json() : [];
+    el.innerHTML = renderNewsItems(articles);
+  } catch(e) {
+    el.innerHTML = `<div class="news-loading">Could not load news.</div>`;
   }
 }
 
-function saveResult() {
-  const mid=document.getElementById("adm-m")?.value;
-  const winner=document.getElementById("adm-w")?.value;
-  const bat=document.getElementById("adm-b")?.value.trim();
-  const bwl=document.getElementById("adm-bwl")?.value.trim();
-  if (!mid||!winner) { toast("⚠️ Select match and winner!"); return; }
-  fbSet(`results/${mid}`,{winner,topBat:bat||"",topBwl:bwl||""})
-    .then(()=>{ toast("✅ Result saved! Points updated."); renderSettings(); });
+// ================================================================
+// SHARING
+// ================================================================
+function shareApp() {
+  const url = window.location.href;
+  navigator.clipboard?.writeText(url);
+  toast("Link copied!");
 }
 
+function generateGroupLink() {
+  const cfg = LS.get("fbConfig");
+  if (!cfg || cfg.demo) { toast("Set up Firebase first"); return; }
+  const { apiKey, databaseURL, projectId } = cfg;
+  const gid = LS.get("groupId");
+  if (!apiKey || !databaseURL || !projectId) { toast("Firebase config incomplete"); return; }
+  const encoded = btoa(JSON.stringify({ apiKey, databaseURL, projectId, groupId: gid }));
+  const url = `${location.origin}${location.pathname}#join=${encoded}`;
+  const text = `🏏 Join our IPL 2026 predictor!\nPick winners, top scorers & more for every match — no money, just bragging rights.\n\n${url}`;
+  const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  if (navigator.share) navigator.share({ title: "IPL Predictor 2026", text, url });
+  else window.open(waUrl, "_blank");
+}
+
+function shareResults() {
+  const board = leaderboard().slice(0, 5);
+  const medals = ["🥇","🥈","🥉"];
+  // Find most recent result
+  const recentMid = Object.keys(results).sort().pop();
+  const recentMatch = recentMid ? getMatch(recentMid) : null;
+  const r = recentMid ? results[recentMid] : null;
+
+  let text = `🏏 IPL Predictor — Results!\n\n`;
+  if (recentMatch && r) {
+    text += `${recentMatch.team1} vs ${recentMatch.team2}\n`;
+    text += `Winner: ${r.winner}\n`;
+    if (r.topScorer) text += `Top Scorer: ${r.topScorer}\n`;
+    if (r.mostWickets) text += `Most Wickets: ${r.mostWickets}\n\n`;
+  }
+  text += `📊 Leaderboard:\n`;
+  board.forEach((p,i) => { text += `${i<3?medals[i]:i+1+"."}  ${p.name} — ${p.total} pts\n`; });
+  const nm = getNextMatch();
+  const url = `${location.origin}${location.pathname}`;
+  text += `\nNext: ${nm.team1} vs ${nm.team2} (${fmtDate(nm.date)})\nPredict now: ${url}`;
+
+  const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  if (navigator.share) navigator.share({ title: "IPL Predictor Results", text });
+  else window.open(waUrl, "_blank");
+}
+
+function shareReminder() {
+  const nm = getNextMatch();
+  const url = `${location.origin}${location.pathname}`;
+  const text = `🏏 ${nm.team1} vs ${nm.team2} — ${fmtDate(nm.date)} at ${nm.time} IST\n\nDon't forget to submit your predictions!\n\n${url}`;
+  const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  if (navigator.share) navigator.share({ title: "IPL Predictor Reminder", text });
+  else window.open(waUrl, "_blank");
+}
+
+// ================================================================
+// SETTINGS HELPERS
+// ================================================================
 function checkPwd() {
-  const cfg=LS.get("fbConfig")||{};
-  const input=document.getElementById("apwd")?.value;
-  if (!cfg.adminPwd || input===cfg.adminPwd) { isAdmin=true; toast("✅ Admin unlocked!"); renderSettings(); }
-  else toast("❌ Wrong password!");
+  const cfg = LS.get("fbConfig")||{};
+  const input = document.getElementById("apwd")?.value;
+  // Check against local config or Firebase groupInfo
+  const adminPwd = cfg.adminPwd || groupInfo?.adminPwd;
+  if (!adminPwd || input === adminPwd) { isAdmin=true; toast("Admin unlocked!"); renderAdmin(); }
+  else toast("Wrong password!");
 }
 
 function changeName() {
-  const n=prompt("Enter new name:", currentUser.name);
+  const n = prompt("Enter new name:", currentUser.name);
   if(n&&n.trim()){
     currentUser.name=n.trim(); LS.set("user",currentUser);
-    fbSet(`participants/${currentUser.id}/name`, currentUser.name).then(()=>{ toast("✅ Name updated!"); renderSettings(); });
+    fbSet(`members/${currentUser.id}/name`, currentUser.name).then(()=>{ toast("Name updated!"); renderAdmin(); });
   }
 }
 
-function shareApp() {
-  const url=window.location.href;
-  if(navigator.share) navigator.share({title:"IPL Predictor 2026",text:"Join our IPL prediction group!",url});
-  else { navigator.clipboard?.writeText(url); toast("🔗 Link copied!"); }
-}
-
 function resetApp() {
-  if(confirm("Reset app? You'll need to reconfigure Firebase.")) {
-    ["fbConfig","user","claudeKey"].forEach(k=>LS.del(k));
+  if(confirm("Reset app? You'll need to reconfigure.")) {
+    ["fbConfig","user","claudeKey","groupId","lastResultSeen"].forEach(k=>LS.del(k));
     location.reload();
   }
 }
@@ -800,23 +1249,49 @@ function resetApp() {
 function go(view) { currentView=view; renderView(); }
 
 function renderView() {
-  if (countdownInterval&&currentView!=="home") { clearInterval(countdownInterval); countdownInterval=null; }
+  if (countdownInterval && currentView !== "home") { clearInterval(countdownInterval); countdownInterval=null; }
   switch(currentView) {
     case "home":     renderHome(); break;
     case "predict":  renderPredict(); break;
+    case "stats":    renderStats(); break;
     case "lb":       renderLeaderboard(); break;
-    case "insights": renderInsights(); break;
-    case "settings": renderSettings(); break;
+    case "admin":    renderAdmin(); break;
   }
 }
 
-function init() {
-  const cfg=LS.get("fbConfig");
+async function init() {
+  // Decode group invite link: #join=BASE64CONFIG
+  const hash = location.hash;
+  if (hash.startsWith("#join=")) {
+    try {
+      const data = JSON.parse(atob(hash.slice(6)));
+      if (data.apiKey && data.databaseURL && data.projectId) {
+        const cfg = {
+          apiKey: data.apiKey, databaseURL: data.databaseURL, projectId: data.projectId,
+          authDomain: data.projectId + ".firebaseapp.com",
+          storageBucket: data.projectId + ".appspot.com",
+        };
+        LS.set("fbConfig", cfg);
+        if (data.groupId) LS.set("groupId", data.groupId);
+        history.replaceState(null, "", location.pathname);
+      }
+    } catch(e) {}
+  }
+
+  const cfg = LS.get("fbConfig");
   if (!cfg) { renderSetup(); return; }
-  if (!cfg.demo) initFirebase(cfg);
-  const u=LS.get("user");
+  if (cfg.demo) { groupId="demo"; }
+  else {
+    if (!initFirebase(cfg)) { renderSetup(); return; }
+    await ensureAuth();
+    const gid = LS.get("groupId");
+    if (gid && gid !== "demo") listenToGroup(gid);
+  }
+
+  const u = LS.get("user");
   if (!u) { renderLogin(); return; }
-  currentUser=u; go("home");
+  currentUser = u;
+  go("home");
 }
 
 init();
