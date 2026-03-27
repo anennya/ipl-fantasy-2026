@@ -326,50 +326,18 @@ function fbDel(path) {
 }
 
 // ================================================================
-// AUTH (Phone OTP)
+// AUTH (Google Sign-In)
 // ================================================================
-let recaptchaVerifier = null;
-let confirmationResult = null;
-
-function setupRecaptcha() {
-  // Destroy old verifier if exists (needed for retries)
-  if (recaptchaVerifier) { try { recaptchaVerifier.clear(); } catch(e){} recaptchaVerifier = null; }
-  recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-    size: 'invisible',
-    callback: () => {},
-    'expired-callback': () => { recaptchaVerifier = null; }
-  });
-}
-
-async function sendOTP() {
-  const phone = document.getElementById('phone-input')?.value.trim();
-  if (!phone) { toast("Enter your phone number!"); return; }
-  const code = document.getElementById('country-code')?.value.trim() || '+91';
-  const formatted = phone.startsWith('+') ? phone : code + phone.replace(/^0+/,'');
+async function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
   try {
-    setupRecaptcha();
-    const btn = document.getElementById('send-otp-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
-    confirmationResult = await firebase.auth().signInWithPhoneNumber(formatted, recaptchaVerifier);
-    renderOTPInput(formatted);
-  } catch(e) {
-    console.error("OTP error:", e);
-    recaptchaVerifier = null;
-    toast(e.message?.includes("too-many-requests") ? "Too many attempts. Try later." : "Failed to send OTP. Check number & try again.");
-    const btn = document.getElementById('send-otp-btn');
-    if (btn) { btn.disabled = false; btn.textContent = 'Send OTP'; }
-  }
-}
-
-async function verifyOTP() {
-  const code = document.getElementById('otp-input')?.value.trim();
-  if (!code || code.length < 6) { toast("Enter the 6-digit code!"); return; }
-  try {
-    const btn = document.getElementById('verify-otp-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
-    const result = await confirmationResult.confirm(code);
-    const uid = result.user.uid;
-    // Check if returning user
+    const btn = document.getElementById('google-signin-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Signing in...'; }
+    const result = await firebase.auth().signInWithPopup(provider);
+    const user = result.user;
+    const uid = user.uid;
+    const displayName = user.displayName || '';
+    // Check if returning user in this group
     if (db && groupId && groupId !== "demo") {
       try {
         const snap = await db.ref(`groups/${groupId}/members/${uid}`).once('value');
@@ -383,47 +351,40 @@ async function verifyOTP() {
         }
       } catch(e) {}
     }
-    renderNameEntry(uid);
+    // New user — use Google display name or ask for one
+    if (displayName) {
+      await completeGoogleLogin(uid, displayName);
+    } else {
+      renderNameEntry(uid);
+    }
   } catch(e) {
-    console.error("OTP verify error:", e);
-    toast("Invalid code. Try again.");
-    const btn = document.getElementById('verify-otp-btn');
-    if (btn) { btn.disabled = false; btn.textContent = 'Verify'; }
+    console.error("Google sign-in error:", e);
+    const btn = document.getElementById('google-signin-btn');
+    if (btn) { btn.disabled = false; btn.innerHTML = googleBtnContent(); }
+    if (e.code === 'auth/popup-closed-by-user') toast("Sign-in cancelled");
+    else if (e.code === 'auth/unauthorized-domain') toast("Add this domain to Firebase Authorized Domains");
+    else toast("Sign-in failed. Try again.");
   }
 }
 
-function renderOTPInput(phone) {
-  $root(`<div class="splash">
-    <div class="splash-logo">🔐</div>
-    <div class="splash-title">Enter OTP</div>
-    <div class="splash-sub">Code sent to <strong style="color:var(--text)">${phone}</strong></div>
-    <div style="width:100%">
-      <div class="fg"><input class="fi" id="otp-input" type="tel" inputmode="numeric" placeholder="••••••" style="text-align:center;font-size:28px;letter-spacing:10px;padding:16px;" maxlength="6" autofocus></div>
-      <button class="btn btn-p" id="verify-otp-btn" onclick="verifyOTP()">Verify & Continue</button>
-      <p style="font-size:12px;color:var(--muted);margin-top:14px;text-align:center">
-        Didn't get it? <button onclick="recaptchaVerifier=null;renderLogin()" style="color:var(--orange);background:none;border:none;cursor:pointer;font-size:12px;font-weight:700">Resend</button>
-      </p>
-    </div>
-    <div id="recaptcha-container"></div>
-  </div>`);
-  setTimeout(()=>{const el=document.getElementById("otp-input"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&verifyOTP());},100);
+function googleBtnContent() {
+  return `<span style="display:flex;align-items:center;justify-content:center;gap:10px"><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg> Sign in with Google</span>`;
 }
 
 function renderNameEntry(uid) {
   $root(`<div class="splash">
     <div class="splash-logo">👤</div>
     <div class="splash-title">Welcome!</div>
-    <div class="splash-sub">Phone verified! Enter your name to join.</div>
+    <div class="splash-sub">Choose a display name for the group.</div>
     <div style="width:100%">
       <div class="fg"><input class="fi" id="u-name" placeholder="Your name" style="text-align:center;font-size:19px;padding:15px;" maxlength="20" autofocus></div>
-      <button class="btn btn-p" onclick="completePhoneLogin('${uid}')">Join & Start Predicting</button>
+      <button class="btn btn-p" onclick="completeGoogleLogin('${uid}', document.getElementById('u-name')?.value.trim())">Join & Start Predicting</button>
     </div>
   </div>`);
-  setTimeout(()=>{const el=document.getElementById("u-name"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&completePhoneLogin(uid));},100);
+  setTimeout(()=>{const el=document.getElementById("u-name"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&completeGoogleLogin(uid, el.value.trim()));},100);
 }
 
-async function completePhoneLogin(uid) {
-  const name = document.getElementById("u-name")?.value.trim();
+async function completeGoogleLogin(uid, name) {
   if (!name) { toast("Enter your name!"); return; }
   currentUser = { id: uid, name };
   LS.set("user", currentUser);
@@ -660,7 +621,7 @@ function renderSetup() {
           1. Go to <strong style="color:var(--text)">console.firebase.google.com</strong><br>
           2. New Project → Add Web App → Copy config<br>
           3. Build → Realtime Database → Create (Test mode)<br>
-          4. Build → Authentication → Phone sign-in → Enable
+          4. Build → Authentication → Google sign-in → Enable
         </p>
         <div class="fg"><label class="fl">API Key</label><input class="fi" id="s-key" placeholder="AIzaSy..." value="${c.apiKey||""}"></div>
         <div class="fg"><label class="fl">Database URL</label><input class="fi" id="s-db" placeholder="https://project-rtdb.firebaseio.com" value="${c.databaseURL||""}"></div>
@@ -687,7 +648,7 @@ async function doSetup() {
   if (!cfg.apiKey||!cfg.databaseURL||!cfg.projectId) { toast("Fill in all fields!"); return; }
   if (!initFirebase(cfg)) { toast("Firebase failed. Check config."); return; }
   LS.set("fbConfig", cfg);
-  // Group will be created after phone auth in completePhoneLogin()
+  // Group will be created after Google sign-in in completeGoogleLogin()
   renderLogin();
 }
 
@@ -699,7 +660,7 @@ function demoMode() {
 }
 
 // ================================================================
-// LOGIN VIEW (Phone Auth or Demo)
+// LOGIN VIEW (Google Sign-In or Demo)
 // ================================================================
 function renderLogin() {
   const cfg = LS.get("fbConfig");
@@ -717,24 +678,16 @@ function renderLogin() {
     setTimeout(()=>{const el=document.getElementById("u-name"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&joinDemo());},100);
     return;
   }
-  // Real mode — phone OTP
+  // Real mode — Google Sign-In
   $root(`<div class="splash">
-    <div class="splash-logo">📱</div>
+    <div class="splash-logo">🏏</div>
     <div class="splash-title">Join the League</div>
-    <div class="splash-sub">Verify your phone to start predicting.<br><span style="font-size:12px">Same number = same account on any device.</span></div>
+    <div class="splash-sub">Sign in to start predicting.<br><span style="font-size:12px">Same Google account = same profile on any device.</span></div>
     <div style="width:100%">
-      <div class="fg">
-        <div style="display:flex;gap:8px">
-          <input class="fi" value="+91" style="width:70px;text-align:center;font-size:15px;flex-shrink:0" id="country-code">
-          <input class="fi" id="phone-input" type="tel" inputmode="tel" placeholder="Phone number" style="flex:1;font-size:17px;padding:15px;" maxlength="15" autofocus>
-        </div>
-      </div>
-      <button class="btn btn-p" id="send-otp-btn" onclick="sendOTP()">Send OTP</button>
-      <p style="font-size:11px;color:var(--muted);margin-top:12px;text-align:center">A 6-digit code will be sent via SMS</p>
+      <button class="btn btn-s" id="google-signin-btn" onclick="signInWithGoogle()" style="font-size:16px;padding:15px 22px">${googleBtnContent()}</button>
+      <p style="font-size:11px;color:var(--muted);margin-top:12px;text-align:center">Your Google name will be used as your display name</p>
     </div>
-    <div id="recaptcha-container"></div>
   </div>`);
-  setTimeout(()=>{const el=document.getElementById("phone-input"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&sendOTP());},100);
 }
 
 async function joinDemo() {
