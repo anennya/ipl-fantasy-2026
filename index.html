@@ -15,8 +15,21 @@
       --green: #00D68F; --red: #FF4D4D; --radius: 16px; --sm: 10px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--dark); color: var(--text); min-height: 100vh; max-width: 480px; margin: 0 auto; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--dark); color: var(--text); min-height: 100vh; margin: 0 auto; }
     #root { padding-bottom: 72px; min-height: 100vh; }
+    .page-content { max-width: 600px; margin: 0 auto; }
+    .page-content.wide { max-width: 1080px; }
+    .two-col { display: block; }
+
+    @media (min-width: 768px) {
+      #root { padding-bottom: 0; padding-left: 80px; }
+      .page-content { max-width: 700px; }
+      .page-content.wide { max-width: 1080px; padding: 0 24px; }
+      .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0; align-items: start; }
+      .two-col > .col-left, .two-col > .col-right { min-width: 0; }
+      .splash { max-width: 500px; margin: 0 auto; }
+      .chat-wrap { max-height: 480px; }
+    }
 
     /* Header */
     .hdr { background: linear-gradient(135deg, #0A0A15, #1a0a30); padding: 14px 18px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; }
@@ -24,11 +37,24 @@
     .hdr-badge { background: var(--orange); color: #fff; font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 20px; letter-spacing: 0.05em; }
     .hdr-icon { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 4px; }
 
-    /* Nav */
-    .nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--dark2); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom, 0px); }
-    .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 9px 4px 7px; cursor: pointer; border: none; background: none; color: var(--muted); font-size: 10px; gap: 3px; transition: color 0.2s; }
+    @media (min-width: 768px) {
+      .hdr { padding: 16px 24px 14px; }
+      .hdr-title { font-size: 20px; }
+    }
+
+    /* Nav — bottom bar on mobile, left sidebar on desktop */
+    .nav { position: fixed; bottom: 0; left: 0; right: 0; width: 100%; background: var(--dark2); border-top: 1px solid var(--border); display: flex; z-index: 200; padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 12px 4px 10px; cursor: pointer; border: none; background: none; color: var(--muted); font-size: 10px; gap: 3px; transition: color 0.2s; -webkit-tap-highlight-color: rgba(255,107,0,0.2); }
     .nav-btn .ic { font-size: 21px; }
     .nav-btn.active { color: var(--orange); }
+    .nav-lbl { display: inline; }
+
+    @media (min-width: 768px) {
+      .nav { bottom: auto; top: 0; left: 0; right: auto; width: 80px; height: 100vh; flex-direction: column; border-top: none; border-right: 1px solid var(--border); padding: 16px 0; justify-content: start; gap: 4px; }
+      .nav-btn { flex: none; padding: 14px 8px; border-radius: 12px; margin: 0 8px; }
+      .nav-btn.active { background: rgba(255,107,0,0.1); }
+      .nav-lbl { display: inline; font-size: 9px; }
+    }
 
     /* Cards */
     .card { background: var(--dark2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 12px 16px; }
@@ -42,6 +68,12 @@
     .tname { font-size: 14px; font-weight: 700; }
     .vs { font-size: 13px; color: var(--muted); font-weight: 800; padding: 0 10px; }
     .mm { display: flex; gap: 12px; justify-content: center; font-size: 12px; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+
+    @media (min-width: 768px) {
+      .tbadge { width: 64px; height: 64px; font-size: 13px; }
+      .tname { font-size: 16px; }
+      .vs { font-size: 15px; }
+    }
 
     /* Countdown */
     .cd { background: linear-gradient(135deg, var(--orange), #ff8c33); border-radius: var(--sm); padding: 12px 16px; text-align: center; margin: 0 16px 12px; }
@@ -142,6 +174,11 @@
     .pred-section { background: var(--dark3); border-radius: var(--sm); padding: 14px; margin-bottom: 12px; }
     .pred-section .fl { margin-bottom: 8px; }
     .num-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    @media (min-width: 768px) {
+      .num-grid { grid-template-columns: 1fr 1fr 1fr; }
+      .pred-section { padding: 20px; }
+    }
 
     /* Stats bars */
     .stat-bar { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
@@ -289,16 +326,120 @@ function fbDel(path) {
 }
 
 // ================================================================
-// AUTH
+// AUTH (Phone OTP)
 // ================================================================
-async function ensureAuth() {
-  if (!db) return null;
+let recaptchaVerifier = null;
+let confirmationResult = null;
+
+function setupRecaptcha() {
+  // Destroy old verifier if exists (needed for retries)
+  if (recaptchaVerifier) { try { recaptchaVerifier.clear(); } catch(e){} recaptchaVerifier = null; }
+  recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+    size: 'invisible',
+    callback: () => {},
+    'expired-callback': () => { recaptchaVerifier = null; }
+  });
+}
+
+async function sendOTP() {
+  const phone = document.getElementById('phone-input')?.value.trim();
+  if (!phone) { toast("Enter your phone number!"); return; }
+  const code = document.getElementById('country-code')?.value.trim() || '+91';
+  const formatted = phone.startsWith('+') ? phone : code + phone.replace(/^0+/,'');
   try {
-    const user = firebase.auth().currentUser;
-    if (user) return user.uid;
-    const cred = await firebase.auth().signInAnonymously();
-    return cred.user.uid;
-  } catch(e) { console.error("Auth failed:", e); return null; }
+    setupRecaptcha();
+    const btn = document.getElementById('send-otp-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+    confirmationResult = await firebase.auth().signInWithPhoneNumber(formatted, recaptchaVerifier);
+    renderOTPInput(formatted);
+  } catch(e) {
+    console.error("OTP error:", e);
+    recaptchaVerifier = null;
+    toast(e.message?.includes("too-many-requests") ? "Too many attempts. Try later." : "Failed to send OTP. Check number & try again.");
+    const btn = document.getElementById('send-otp-btn');
+    if (btn) { btn.disabled = false; btn.textContent = 'Send OTP'; }
+  }
+}
+
+async function verifyOTP() {
+  const code = document.getElementById('otp-input')?.value.trim();
+  if (!code || code.length < 6) { toast("Enter the 6-digit code!"); return; }
+  try {
+    const btn = document.getElementById('verify-otp-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
+    const result = await confirmationResult.confirm(code);
+    const uid = result.user.uid;
+    // Check if returning user
+    if (db && groupId && groupId !== "demo") {
+      try {
+        const snap = await db.ref(`groups/${groupId}/members/${uid}`).once('value');
+        const existing = snap.val();
+        if (existing && existing.name) {
+          currentUser = { id: uid, name: existing.name };
+          LS.set("user", currentUser);
+          listenToGroup(groupId);
+          go("home");
+          return;
+        }
+      } catch(e) {}
+    }
+    renderNameEntry(uid);
+  } catch(e) {
+    console.error("OTP verify error:", e);
+    toast("Invalid code. Try again.");
+    const btn = document.getElementById('verify-otp-btn');
+    if (btn) { btn.disabled = false; btn.textContent = 'Verify'; }
+  }
+}
+
+function renderOTPInput(phone) {
+  $root(`<div class="splash">
+    <div class="splash-logo">🔐</div>
+    <div class="splash-title">Enter OTP</div>
+    <div class="splash-sub">Code sent to <strong style="color:var(--text)">${phone}</strong></div>
+    <div style="width:100%">
+      <div class="fg"><input class="fi" id="otp-input" type="tel" inputmode="numeric" placeholder="••••••" style="text-align:center;font-size:28px;letter-spacing:10px;padding:16px;" maxlength="6" autofocus></div>
+      <button class="btn btn-p" id="verify-otp-btn" onclick="verifyOTP()">Verify & Continue</button>
+      <p style="font-size:12px;color:var(--muted);margin-top:14px;text-align:center">
+        Didn't get it? <button onclick="recaptchaVerifier=null;renderLogin()" style="color:var(--orange);background:none;border:none;cursor:pointer;font-size:12px;font-weight:700">Resend</button>
+      </p>
+    </div>
+    <div id="recaptcha-container"></div>
+  </div>`);
+  setTimeout(()=>{const el=document.getElementById("otp-input"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&verifyOTP());},100);
+}
+
+function renderNameEntry(uid) {
+  $root(`<div class="splash">
+    <div class="splash-logo">👤</div>
+    <div class="splash-title">Welcome!</div>
+    <div class="splash-sub">Phone verified! Enter your name to join.</div>
+    <div style="width:100%">
+      <div class="fg"><input class="fi" id="u-name" placeholder="Your name" style="text-align:center;font-size:19px;padding:15px;" maxlength="20" autofocus></div>
+      <button class="btn btn-p" onclick="completePhoneLogin('${uid}')">Join & Start Predicting</button>
+    </div>
+  </div>`);
+  setTimeout(()=>{const el=document.getElementById("u-name"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&completePhoneLogin(uid));},100);
+}
+
+async function completePhoneLogin(uid) {
+  const name = document.getElementById("u-name")?.value.trim();
+  if (!name) { toast("Enter your name!"); return; }
+  currentUser = { id: uid, name };
+  LS.set("user", currentUser);
+  // If no group yet (fresh admin setup), create one
+  if (!groupId || groupId === "demo") {
+    const cfg = LS.get("fbConfig");
+    if (cfg && !cfg.demo && db) {
+      const gid = "g_" + Date.now().toString(36);
+      await db.ref(`groups/${gid}/info`).set({ name: cfg.groupName || "IPL Predictor", createdBy: uid, createdAt: Date.now(), adminPwd: cfg.adminPwd || "" });
+      groupId = gid;
+      LS.set("groupId", gid);
+    }
+  }
+  await fbSet(`members/${uid}`, { name, joined: Date.now() });
+  if (groupId && groupId !== "demo") listenToGroup(groupId);
+  go("home");
 }
 
 // ================================================================
@@ -454,6 +595,7 @@ function calcPts(uid) {
 
 function leaderboard() {
   return Object.entries(participants)
+    .filter(([uid,u]) => u && typeof u === "object" && u.name)
     .map(([uid,u]) => ({ uid, name: u.name, ...calcPts(uid) }))
     .sort((a,b) => b.total - a.total);
 }
@@ -466,12 +608,14 @@ function safeRender() {
 }
 function $root(html) { document.getElementById("root").innerHTML = html; }
 
-function wrapApp(content) {
+function wrapApp(content, wide) {
   return `
-    ${content}
+    <div class="page-content${wide?" wide":""}">
+      ${content}
+    </div>
     <nav class="nav">
       ${[["home","🏠","Home"],["predict","🎯","Predict"],["stats","📊","Stats"],["lb","🏆","Board"]]
-        .map(([v,i,l]) => `<button class="nav-btn${currentView===v?" active":""}" onclick="go('${v}')"><span class="ic">${i}</span>${l}</button>`).join("")}
+        .map(([v,i,l]) => `<button class="nav-btn${currentView===v?" active":""}" onclick="go('${v}')"><span class="ic">${i}</span><span class="nav-lbl">${l}</span></button>`).join("")}
     </nav>`;
 }
 
@@ -516,11 +660,12 @@ function renderSetup() {
           1. Go to <strong style="color:var(--text)">console.firebase.google.com</strong><br>
           2. New Project → Add Web App → Copy config<br>
           3. Build → Realtime Database → Create (Test mode)<br>
-          4. Build → Authentication → Anonymous sign-in → Enable
+          4. Build → Authentication → Phone sign-in → Enable
         </p>
         <div class="fg"><label class="fl">API Key</label><input class="fi" id="s-key" placeholder="AIzaSy..." value="${c.apiKey||""}"></div>
         <div class="fg"><label class="fl">Database URL</label><input class="fi" id="s-db" placeholder="https://project-rtdb.firebaseio.com" value="${c.databaseURL||""}"></div>
         <div class="fg"><label class="fl">Project ID</label><input class="fi" id="s-pid" placeholder="my-ipl-predictor" value="${c.projectId||""}"></div>
+        <div class="fg"><label class="fl">Group Name</label><input class="fi" id="s-gname" placeholder="e.g. Cricket Fanatics" value="${c.groupName||""}"></div>
         <div class="fg"><label class="fl">Admin Password</label><input class="fi" id="s-pwd" type="password" placeholder="Choose a password" value="${c.adminPwd||""}"></div>
         <button class="btn btn-p" onclick="doSetup()">Connect & Start</button>
       </div>
@@ -537,16 +682,12 @@ async function doSetup() {
     authDomain:  document.getElementById("s-pid").value.trim()+".firebaseapp.com",
     storageBucket: document.getElementById("s-pid").value.trim()+".appspot.com",
     adminPwd:    document.getElementById("s-pwd").value.trim(),
+    groupName:   document.getElementById("s-gname").value.trim() || "IPL Predictor",
   };
   if (!cfg.apiKey||!cfg.databaseURL||!cfg.projectId) { toast("Fill in all fields!"); return; }
   if (!initFirebase(cfg)) { toast("Firebase failed. Check config."); return; }
-  const uid = await ensureAuth();
-  if (!uid) { toast("Auth failed. Enable Anonymous Auth in Firebase."); return; }
   LS.set("fbConfig", cfg);
-  // Create a default group
-  const gid = "g_" + Date.now().toString(36);
-  await db.ref(`groups/${gid}/info`).set({ name: "IPL Predictor", createdBy: uid, createdAt: Date.now(), adminPwd: cfg.adminPwd });
-  LS.set("groupId", gid);
+  // Group will be created after phone auth in completePhoneLogin()
   renderLogin();
 }
 
@@ -558,37 +699,51 @@ function demoMode() {
 }
 
 // ================================================================
-// LOGIN VIEW
+// LOGIN VIEW (Phone Auth or Demo)
 // ================================================================
 function renderLogin() {
+  const cfg = LS.get("fbConfig");
+  // Demo mode — simple name entry
+  if (cfg?.demo) {
+    $root(`<div class="splash">
+      <div class="splash-logo">👤</div>
+      <div class="splash-title">Join the League</div>
+      <div class="splash-sub">Enter your name to start predicting</div>
+      <div style="width:100%">
+        <div class="fg"><input class="fi" id="u-name" placeholder="Your name" style="text-align:center;font-size:19px;padding:15px;" maxlength="20" autofocus></div>
+        <button class="btn btn-p" onclick="joinDemo()">Join & Start Predicting</button>
+      </div>
+    </div>`);
+    setTimeout(()=>{const el=document.getElementById("u-name"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&joinDemo());},100);
+    return;
+  }
+  // Real mode — phone OTP
   $root(`<div class="splash">
-    <div class="splash-logo">👤</div>
+    <div class="splash-logo">📱</div>
     <div class="splash-title">Join the League</div>
-    <div class="splash-sub">Enter your name to start predicting</div>
+    <div class="splash-sub">Verify your phone to start predicting.<br><span style="font-size:12px">Same number = same account on any device.</span></div>
     <div style="width:100%">
-      <div class="fg"><input class="fi" id="u-name" placeholder="Your name" style="text-align:center;font-size:19px;padding:15px;" maxlength="20" autofocus></div>
-      <button class="btn btn-p" onclick="joinLeague()">Join & Start Predicting</button>
+      <div class="fg">
+        <div style="display:flex;gap:8px">
+          <input class="fi" value="+91" style="width:70px;text-align:center;font-size:15px;flex-shrink:0" id="country-code">
+          <input class="fi" id="phone-input" type="tel" inputmode="tel" placeholder="Phone number" style="flex:1;font-size:17px;padding:15px;" maxlength="15" autofocus>
+        </div>
+      </div>
+      <button class="btn btn-p" id="send-otp-btn" onclick="sendOTP()">Send OTP</button>
+      <p style="font-size:11px;color:var(--muted);margin-top:12px;text-align:center">A 6-digit code will be sent via SMS</p>
     </div>
+    <div id="recaptcha-container"></div>
   </div>`);
-  setTimeout(()=>{ const el=document.getElementById("u-name"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&joinLeague()); },100);
+  setTimeout(()=>{const el=document.getElementById("phone-input"); el&&el.addEventListener("keydown",e=>e.key==="Enter"&&sendOTP());},100);
 }
 
-async function joinLeague() {
+async function joinDemo() {
   const name = document.getElementById("u-name")?.value.trim();
   if (!name) { toast("Enter your name!"); return; }
-  let uid;
-  if (db) {
-    uid = await ensureAuth();
-    if (!uid) { uid = "u"+Date.now()+Math.random().toString(36).slice(2,5); }
-  } else {
-    uid = "u"+Date.now()+Math.random().toString(36).slice(2,5);
-  }
+  const uid = "u"+Date.now()+Math.random().toString(36).slice(2,5);
   currentUser = { id: uid, name };
   LS.set("user", currentUser);
-  if (groupId) {
-    await fbSet(`members/${uid}`, { name, joined: Date.now() });
-    if (groupId !== "demo") listenToGroup(groupId);
-  }
+  await fbSet(`members/${uid}`, { name, joined: Date.now() });
   go("home");
 }
 
@@ -621,44 +776,49 @@ function renderHome() {
       New results posted! Tap to see how you did →
     </div>` : ""}
 
-    ${matchCard(nm, true)}
+    <div class="two-col">
+      <div class="col-left">
+        ${matchCard(nm, true)}
+        <div class="cd"><div class="cd-lbl">Predictions close in</div><div class="cd-time" id="cd-t">--:--:--</div></div>
+      </div>
 
-    <div class="cd"><div class="cd-lbl">Predictions close in</div><div class="cd-time" id="cd-t">--:--:--</div></div>
+      <div class="col-right">
+        <!-- Chatbot -->
+        <div class="card">
+          <div class="ct">AI Cricket Analyst</div>
 
-    <!-- Chatbot -->
-    <div class="card">
-      <div class="ct">AI Cricket Analyst</div>
+          ${!hasKey ? `
+          <div class="api-box">
+            <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Get AI analysis on pitch, matchups, player form & injuries. Sources are always cited.</p>
+            <div style="display:flex;gap:8px">
+              <input class="fi" id="ak-in" type="password" placeholder="Claude API key (sk-ant-...)" style="flex:1;font-size:13px">
+              <button class="btn btn-p btn-sm" onclick="saveKey()">Save</button>
+            </div>
+            <p style="font-size:11px;color:var(--muted);margin-top:7px">Free key at <strong style="color:var(--text)">console.anthropic.com</strong></p>
+          </div>` : `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <span class="badge bg-g">AI Active</span>
+            <button onclick="clearKey()" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer">Change key</button>
+          </div>`}
 
-      ${!hasKey ? `
-      <div class="api-box">
-        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Get AI analysis on pitch, matchups, player form & injuries. Sources are always cited.</p>
-        <div style="display:flex;gap:8px">
-          <input class="fi" id="ak-in" type="password" placeholder="Claude API key (sk-ant-...)" style="flex:1;font-size:13px">
-          <button class="btn btn-p btn-sm" onclick="saveKey()">Save</button>
+          <div class="chat-wrap" id="chat-el">
+            <div class="cm bot"><div class="cb">Ask me about pitch conditions, player form, injuries, team matchups — I'll cite my sources.</div></div>
+            ${chatHistory.map(m=>`<div class="cm ${m.role}"><div class="cb">${m.role==="bot"?mdLinks(m.content):m.content}</div></div>`).join("")}
+          </div>
+
+          <div class="ci-row">
+            <input class="fi" id="ci" placeholder="Ask about pitch, teams, players..." onkeydown="if(event.key==='Enter')doChat()" style="font-size:13px">
+            <button class="csend" onclick="doChat()">➤</button>
+          </div>
+
+          <div class="quick-btns">
+            ${[`Pitch analysis for ${nm.city}`,`${nm.team1} vs ${nm.team2} prediction`,`Injury updates`,`Playing XI prediction`]
+              .map(q=>`<button class="btn btn-s btn-sm" onclick="askQ(${JSON.stringify(q)})">${q}</button>`).join("")}
+          </div>
         </div>
-        <p style="font-size:11px;color:var(--muted);margin-top:7px">Free key at <strong style="color:var(--text)">console.anthropic.com</strong></p>
-      </div>` : `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <span class="badge bg-g">AI Active</span>
-        <button onclick="clearKey()" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer">Change key</button>
-      </div>`}
-
-      <div class="chat-wrap" id="chat-el">
-        <div class="cm bot"><div class="cb">Ask me about pitch conditions, player form, injuries, team matchups — I'll cite my sources.</div></div>
-        ${chatHistory.map(m=>`<div class="cm ${m.role}"><div class="cb">${m.role==="bot"?mdLinks(m.content):m.content}</div></div>`).join("")}
-      </div>
-
-      <div class="ci-row">
-        <input class="fi" id="ci" placeholder="Ask about pitch, teams, players..." onkeydown="if(event.key==='Enter')doChat()" style="font-size:13px">
-        <button class="csend" onclick="doChat()">➤</button>
-      </div>
-
-      <div class="quick-btns">
-        ${[`Pitch analysis for ${nm.city}`,`${nm.team1} vs ${nm.team2} prediction`,`Injury updates`,`Playing XI prediction`]
-          .map(q=>`<button class="btn btn-s btn-sm" onclick="askQ(${JSON.stringify(q)})">${q}</button>`).join("")}
       </div>
     </div>
-  `));
+  `, true));
 
   // Countdown
   if (countdownInterval) clearInterval(countdownInterval);
@@ -887,38 +1047,45 @@ function renderLeaderboard() {
   $root(wrapApp(`
     <div class="hdr"><div class="hdr-title">Leaderboard</div><div class="hdr-badge">${played} PLAYED</div></div>
 
-    ${board.length===0 ? `<div class="empty"><span class="ei">🏏</span><p>No results yet!</p><p style="font-size:12px;margin-top:6px">Standings appear after the first match result is entered.</p></div>` : `
-    <div class="card">
-      ${board.map((p,i)=>{
-        const isMe = p.uid===currentUser.id;
-        return `<div class="lbi" style="${isMe?"background:rgba(255,107,0,0.06);border-radius:8px;padding:12px 8px;margin:0 -4px":""}">
-          <div class="lbr ${i<3?"gold":""}">${i<3?medals[i]:i+1}</div>
-          <div class="av" style="${isMe?"background:var(--orange)":"background:var(--dark3);color:var(--text)"}">${p.name[0].toUpperCase()}</div>
-          <div style="flex:1">
-            <div style="font-weight:700;font-size:15px">${p.name} ${isMe?'<span class="badge bg-o" style="font-size:10px">You</span>':""}</div>
-            <div style="font-size:11px;color:var(--muted)">${p.breakdown.length} match${p.breakdown.length!==1?"es":""}</div>
-          </div>
-          <div style="text-align:right"><div class="lbpts">${p.total}</div><div style="font-size:10px;color:var(--muted)">pts</div></div>
-        </div>`;
-      }).join("")}
-    </div>`}
+    <div class="two-col">
+      <div class="col-left">
+        ${board.length===0 ? `<div class="empty"><span class="ei">🏏</span><p>No results yet!</p><p style="font-size:12px;margin-top:6px">Standings appear after the first match result is entered.</p></div>` : `
+        <div class="card">
+          ${board.map((p,i)=>{
+            const isMe = p.uid===currentUser.id;
+            return `<div class="lbi" style="${isMe?"background:rgba(255,107,0,0.06);border-radius:8px;padding:12px 8px;margin:0 -4px":""}">
+              <div class="lbr ${i<3?"gold":""}">${i<3?medals[i]:i+1}</div>
+              <div class="av" style="${isMe?"background:var(--orange)":"background:var(--dark3);color:var(--text)"}">${p.name[0].toUpperCase()}</div>
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:15px">${p.name} ${isMe?'<span class="badge bg-o" style="font-size:10px">You</span>':""}</div>
+                <div style="font-size:11px;color:var(--muted)">${p.breakdown.length} match${p.breakdown.length!==1?"es":""}</div>
+              </div>
+              <div style="text-align:right"><div class="lbpts">${p.total}</div><div style="font-size:10px;color:var(--muted)">pts</div></div>
+            </div>`;
+          }).join("")}
+        </div>`}
+      </div>
 
-    <div class="card">
-      <div class="ct">Group Info</div>
-      <div class="pts-row"><span>Members</span><span style="font-weight:700">${memberCount}</span></div>
-      <div class="pts-row"><span>Matches played</span><span style="font-weight:700">${played}</span></div>
-      <div class="pts-row"><span>Max pts/match</span><span style="font-weight:700">~37</span></div>
-    </div>
+      <div class="col-right">
+        <div class="card">
+          <div class="ct">Group Info</div>
+          <div class="pts-row"><span>Group</span><span style="font-weight:700">${groupInfo?.name||"IPL Predictor"}</span></div>
+          <div class="pts-row"><span>Members</span><span style="font-weight:700">${memberCount}</span></div>
+          <div class="pts-row"><span>Matches played</span><span style="font-weight:700">${played}</span></div>
+          <div class="pts-row"><span>Max pts/match</span><span style="font-weight:700">~37</span></div>
+        </div>
 
-    <div class="card">
-      <div class="ct">Scoring Rules</div>
-      <div class="pts-row"><span>Correct winner</span><span class="pts-v">+3 pts</span></div>
-      <div class="pts-row"><span>Correct top scorer / economy / wickets</span><span class="pts-v">+4 pts each</span></div>
-      <div class="pts-row"><span>Playing XI (per team, 8+ correct)</span><span class="pts-v">+3-5 pts</span></div>
-      <div class="pts-row"><span>Numeric (exact / close / near)</span><span class="pts-v">+3 / +2 / +1</span></div>
-      <div class="pts-row"><span>Winner streak bonus (3+)</span><span class="pts-v">1.5x</span></div>
+        <div class="card">
+          <div class="ct">Scoring Rules</div>
+          <div class="pts-row"><span>Correct winner</span><span class="pts-v">+3 pts</span></div>
+          <div class="pts-row"><span>Correct top scorer / economy / wickets</span><span class="pts-v">+4 pts each</span></div>
+          <div class="pts-row"><span>Playing XI (per team, 8+ correct)</span><span class="pts-v">+3-5 pts</span></div>
+          <div class="pts-row"><span>Numeric (exact / close / near)</span><span class="pts-v">+3 / +2 / +1</span></div>
+          <div class="pts-row"><span>Winner streak bonus (3+)</span><span class="pts-v">1.5x</span></div>
+        </div>
+      </div>
     </div>
-  `));
+  `, true));
 }
 
 // ================================================================
@@ -940,10 +1107,14 @@ function renderAdmin() {
     </div>
 
     <div class="card">
-      <div class="ct">Share Group Link</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">Share a magic link — group members tap it and go straight to name entry.</p>
-      <button class="btn btn-p" onclick="generateGroupLink()" style="margin-bottom:8px">Share via WhatsApp</button>
-      <button class="btn btn-s" onclick="shareApp()">Copy Link</button>
+      <div class="ct">Group</div>
+      <div class="fg"><label class="fl">Group Name</label><input class="fi" id="gname-input" placeholder="e.g. Cricket Fanatics" value="${groupInfo?.name||cfg.groupName||"IPL Predictor"}"></div>
+      <button class="btn btn-s" onclick="renameGroup()" style="margin-bottom:12px">Update Group Name</button>
+      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">Share a magic link — group members tap it and go straight to name entry.</p>
+        <button class="btn btn-p" onclick="generateGroupLink()" style="margin-bottom:8px">Share via WhatsApp</button>
+        <button class="btn btn-s" onclick="shareApp()">Copy Link</button>
+      </div>
     </div>
 
     <div class="admin-box">
@@ -1162,9 +1333,15 @@ async function loadNews(team1, team2) {
 // SHARING
 // ================================================================
 function shareApp() {
-  const url = window.location.href;
+  const cfg = LS.get("fbConfig");
+  if (!cfg || cfg.demo) { toast("Set up Firebase first"); return; }
+  const { apiKey, databaseURL, projectId } = cfg;
+  const gid = LS.get("groupId");
+  if (!apiKey || !databaseURL || !projectId) { toast("Firebase config incomplete"); return; }
+  const encoded = btoa(JSON.stringify({ apiKey, databaseURL, projectId, groupId: gid }));
+  const url = `${location.origin}${location.pathname}?join=${encoded}`;
   navigator.clipboard?.writeText(url);
-  toast("Link copied!");
+  toast("Invite link copied!");
 }
 
 function generateGroupLink() {
@@ -1174,7 +1351,7 @@ function generateGroupLink() {
   const gid = LS.get("groupId");
   if (!apiKey || !databaseURL || !projectId) { toast("Firebase config incomplete"); return; }
   const encoded = btoa(JSON.stringify({ apiKey, databaseURL, projectId, groupId: gid }));
-  const url = `${location.origin}${location.pathname}#join=${encoded}`;
+  const url = `${location.origin}${location.pathname}?join=${encoded}`;
   const text = `🏏 Join our IPL 2026 predictor!\nPick winners, top scorers & more for every match — no money, just bragging rights.\n\n${url}`;
   const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
   if (navigator.share) navigator.share({ title: "IPL Predictor 2026", text, url });
@@ -1228,6 +1405,16 @@ function checkPwd() {
   else toast("Wrong password!");
 }
 
+function renameGroup() {
+  const name = document.getElementById("gname-input")?.value.trim();
+  if (!name) { toast("Enter a group name"); return; }
+  if (db && groupId) {
+    db.ref(`groups/${groupId}/info/name`).set(name).then(() => { toast("Group renamed!"); });
+  }
+  const cfg = LS.get("fbConfig");
+  if (cfg) { cfg.groupName = name; LS.set("fbConfig", cfg); }
+}
+
 function changeName() {
   const n = prompt("Enter new name:", currentUser.name);
   if(n&&n.trim()){
@@ -1238,6 +1425,7 @@ function changeName() {
 
 function resetApp() {
   if(confirm("Reset app? You'll need to reconfigure.")) {
+    try { firebase.auth().signOut(); } catch(e){}
     ["fbConfig","user","claudeKey","groupId","lastResultSeen"].forEach(k=>LS.del(k));
     location.reload();
   }
@@ -1260,11 +1448,12 @@ function renderView() {
 }
 
 async function init() {
-  // Decode group invite link: #join=BASE64CONFIG
-  const hash = location.hash;
-  if (hash.startsWith("#join=")) {
+  // Decode group invite link: ?join=BASE64CONFIG (query param survives WhatsApp sharing)
+  const params = new URLSearchParams(location.search);
+  const joinParam = params.get("join");
+  if (joinParam) {
     try {
-      const data = JSON.parse(atob(hash.slice(6)));
+      const data = JSON.parse(atob(joinParam));
       if (data.apiKey && data.databaseURL && data.projectId) {
         const cfg = {
           apiKey: data.apiKey, databaseURL: data.databaseURL, projectId: data.projectId,
@@ -1280,18 +1469,58 @@ async function init() {
 
   const cfg = LS.get("fbConfig");
   if (!cfg) { renderSetup(); return; }
-  if (cfg.demo) { groupId="demo"; }
-  else {
-    if (!initFirebase(cfg)) { renderSetup(); return; }
-    await ensureAuth();
-    const gid = LS.get("groupId");
-    if (gid && gid !== "demo") listenToGroup(gid);
+
+  // Demo mode — simple name-only flow
+  if (cfg.demo) {
+    groupId = "demo";
+    const u = LS.get("user");
+    if (!u) { renderLogin(); return; }
+    currentUser = u;
+    go("home");
+    return;
   }
 
-  const u = LS.get("user");
-  if (!u) { renderLogin(); return; }
-  currentUser = u;
-  go("home");
+  // Real Firebase — initialize and check auth state
+  if (!initFirebase(cfg)) { renderSetup(); return; }
+  const gid = LS.get("groupId");
+  if (gid && gid !== "demo") groupId = gid;
+
+  // Wait for Firebase to resolve the current auth state (fires once immediately)
+  const user = await new Promise(resolve => {
+    const unsub = firebase.auth().onAuthStateChanged(u => { unsub(); resolve(u); });
+  });
+
+  if (user) {
+    // User has an active phone auth session
+    const uid = user.uid;
+    if (groupId) listenToGroup(groupId);
+
+    // Check localStorage first
+    const stored = LS.get("user");
+    if (stored && stored.id === uid) {
+      currentUser = stored;
+      go("home");
+      return;
+    }
+    // localStorage cleared but still authed — try Firebase member record
+    if (db && groupId) {
+      try {
+        const snap = await db.ref(`groups/${groupId}/members/${uid}`).once('value');
+        const existing = snap.val();
+        if (existing && existing.name) {
+          currentUser = { id: uid, name: existing.name };
+          LS.set("user", currentUser);
+          go("home");
+          return;
+        }
+      } catch(e) {}
+    }
+    // Authed but no name record — show name entry
+    renderNameEntry(uid);
+  } else {
+    // Not signed in — show phone login
+    renderLogin();
+  }
 }
 
 init();
