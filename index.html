@@ -320,42 +320,69 @@ function fbDel(path) {
 // ================================================================
 // AUTH (Google Sign-In)
 // ================================================================
+async function handleSignInResult(result) {
+  const user = result.user;
+  const uid = user.uid;
+  const displayName = user.displayName || '';
+  if (db && groupId && groupId !== "demo") {
+    try {
+      const snap = await db.ref(`groups/${groupId}/members/${uid}`).once('value');
+      const existing = snap.val();
+      if (existing && existing.name) {
+        currentUser = { id: uid, name: existing.name };
+        LS.set("user", currentUser);
+        listenToGroup(groupId);
+        go("home");
+        return;
+      }
+    } catch(e) {}
+  }
+  if (displayName) {
+    await completeGoogleLogin(uid, displayName);
+  } else {
+    renderNameEntry(uid);
+  }
+}
+
 async function signInWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
+
+  // Pre-check: if sessionStorage is blocked, use Persistence.NONE to bypass it
+  let sessionOk = true;
+  try { sessionStorage.setItem("_t","1"); sessionStorage.removeItem("_t"); }
+  catch(e) { sessionOk = false; }
+  if (!sessionOk) {
+    await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE);
+  }
+
   try {
     const btn = document.getElementById('google-signin-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Signing in...'; }
     const result = await firebase.auth().signInWithPopup(provider);
-    const user = result.user;
-    const uid = user.uid;
-    const displayName = user.displayName || '';
-    // Check if returning user in this group
-    if (db && groupId && groupId !== "demo") {
-      try {
-        const snap = await db.ref(`groups/${groupId}/members/${uid}`).once('value');
-        const existing = snap.val();
-        if (existing && existing.name) {
-          currentUser = { id: uid, name: existing.name };
-          LS.set("user", currentUser);
-          listenToGroup(groupId);
-          go("home");
-          return;
-        }
-      } catch(e) {}
-    }
-    // New user — use Google display name or ask for one
-    if (displayName) {
-      await completeGoogleLogin(uid, displayName);
-    } else {
-      renderNameEntry(uid);
-    }
+    await handleSignInResult(result);
   } catch(e) {
     console.error("Google sign-in error:", e);
     const btn = document.getElementById('google-signin-btn');
-    if (btn) { btn.disabled = false; btn.innerHTML = googleBtnContent(); }
-    if (e.code === 'auth/popup-closed-by-user') toast("Sign-in cancelled");
-    else if (e.code === 'auth/unauthorized-domain') toast("Add this domain to Firebase Authorized Domains");
-    else toast("Sign-in failed. Try again.");
+    if (e.code === 'auth/popup-closed-by-user') {
+      if (btn) { btn.disabled = false; btn.innerHTML = googleBtnContent(); }
+      toast("Sign-in cancelled");
+    } else if (e.code === 'auth/unauthorized-domain') {
+      if (btn) { btn.disabled = false; btn.innerHTML = googleBtnContent(); }
+      toast("Add this domain to Firebase Authorized Domains");
+    } else if (e.message && e.message.includes("missing initial state")) {
+      // Browser is blocking sessionStorage — retry with Persistence.NONE
+      try {
+        await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE);
+        const result2 = await firebase.auth().signInWithPopup(provider);
+        await handleSignInResult(result2);
+      } catch(e2) {
+        if (btn) { btn.disabled = false; btn.innerHTML = googleBtnContent(); }
+        toast("Sign-in failed. Try Chrome or disable strict privacy mode.");
+      }
+    } else {
+      if (btn) { btn.disabled = false; btn.innerHTML = googleBtnContent(); }
+      toast("Sign-in failed. Try again.");
+    }
   }
 }
 
