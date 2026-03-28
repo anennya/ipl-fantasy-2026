@@ -236,14 +236,6 @@ const PITCH = {
 
 const SCORING = {
   winner:       { exact: 3 },
-  topScorer:    { exact: 4 },
-  bestEconomy:  { exact: 4 },
-  mostWickets:  { exact: 4 },
-  playingXI:    { perfect: 5, good: 3, ok: 1, thresholds: [11, 8, 5] },
-  totalRuns:    { exact: 3, close: 2, near: 1, band: 10 },
-  powerplay:    { exact: 3, close: 2, near: 1, band: 8 },
-  sixes:        { exact: 3, close: 2, near: 1, band: 2 },
-  dotBalls:     { exact: 3, close: 2, near: 1, band: 10 },
   streakBonus:  { threshold: 3, multiplier: 1.5 },
 };
 
@@ -440,32 +432,6 @@ function mdLinks(text) {
 // ================================================================
 // SCORING ENGINE
 // ================================================================
-function scoreNumeric(pred, actual, cfg) {
-  if (pred === "" || pred === undefined || actual === "" || actual === undefined) return { pts: 0, label: "—" };
-  const p = parseInt(pred), a = parseInt(actual);
-  if (isNaN(p) || isNaN(a)) return { pts: 0, label: "—" };
-  const diff = Math.abs(p - a);
-  if (diff === 0) return { pts: cfg.exact, label: "Exact!" };
-  if (diff <= cfg.band) return { pts: cfg.close, label: `Within ${cfg.band}` };
-  if (diff <= cfg.band * 2) return { pts: cfg.near, label: `Within ${cfg.band*2}` };
-  return { pts: 0, label: `Off by ${diff}` };
-}
-
-function scorePlayer(pred, actual) {
-  if (!pred || !actual) return false;
-  return pred.trim().toLowerCase() === actual.trim().toLowerCase();
-}
-
-function scorePlayingXI(predArr, actualArr) {
-  if (!predArr || !actualArr || !predArr.length) return { pts: 0, correct: 0 };
-  const actual = actualArr.map(p => p.trim().toLowerCase());
-  const correct = predArr.filter(p => actual.includes(p.trim().toLowerCase())).length;
-  const t = SCORING.playingXI.thresholds;
-  if (correct >= t[0]) return { pts: SCORING.playingXI.perfect, correct };
-  if (correct >= t[1]) return { pts: SCORING.playingXI.good, correct };
-  if (correct >= t[2]) return { pts: SCORING.playingXI.ok, correct };
-  return { pts: 0, correct };
-}
 
 function getWinStreak(uid) {
   let streak = 0;
@@ -499,54 +465,16 @@ function calcPts(uid) {
     // Winner
     const winPts = pred.winner === res.winner ? SCORING.winner.exact : 0;
     let winLabel = winPts > 0 ? "Correct" : "Wrong";
-    // Streak bonus
-    let bonusApplied = false;
     let finalWinPts = winPts;
     if (winPts > 0) {
       const streak = getWinStreak(uid);
       if (streak >= SCORING.streakBonus.threshold) {
         finalWinPts = Math.round(winPts * SCORING.streakBonus.multiplier);
-        bonusApplied = true;
         winLabel += ` (${streak} streak! 1.5x)`;
       }
     }
     pts += finalWinPts;
     det.push({ cat: "Winner", pts: finalWinPts, note: winLabel });
-
-    // Player predictions
-    const playerCats = [
-      { key: "topScorer", label: "Top Scorer", cfg: SCORING.topScorer },
-      { key: "bestEconomy", label: "Best Economy", cfg: SCORING.bestEconomy },
-      { key: "mostWickets", label: "Most Wickets", cfg: SCORING.mostWickets },
-    ];
-    for (const pc of playerCats) {
-      const correct = scorePlayer(pred[pc.key], res[pc.key]);
-      const p = correct ? pc.cfg.exact : 0;
-      pts += p;
-      det.push({ cat: pc.label, pts: p, note: correct ? "Correct" : (pred[pc.key] ? "Wrong" : "—") });
-    }
-
-    // Playing XI
-    for (const team of ["team1", "team2"]) {
-      const xi = scorePlayingXI(pred[`playingXI_${team}`], res[`playingXI_${team}`]);
-      pts += xi.pts;
-      det.push({ cat: `XI ${m[team]}`, pts: xi.pts, note: xi.correct > 0 ? `${xi.correct}/11 correct` : "—" });
-    }
-
-    // Numerics
-    const numCats = [
-      { key: "totalRuns_team1", label: `Runs ${m.team1}`, cfg: SCORING.totalRuns },
-      { key: "totalRuns_team2", label: `Runs ${m.team2}`, cfg: SCORING.totalRuns },
-      { key: "powerplay_team1", label: `PP ${m.team1}`, cfg: SCORING.powerplay },
-      { key: "powerplay_team2", label: `PP ${m.team2}`, cfg: SCORING.powerplay },
-      { key: "sixes", label: "Sixes", cfg: SCORING.sixes },
-      { key: "dotBalls", label: "Dot Balls", cfg: SCORING.dotBalls },
-    ];
-    for (const nc of numCats) {
-      const s = scoreNumeric(pred[nc.key], res[nc.key], nc.cfg);
-      pts += s.pts;
-      det.push({ cat: nc.label, pts: s.pts, note: s.label });
-    }
 
     total += pts;
     breakdown.push({ mid, m, pts, det });
@@ -575,15 +503,13 @@ function wrapApp(content, wide) {
       ${content}
     </div>
     <nav class="nav">
-      ${[["home","🏠","Home"],["predict","🎯","Predict"],["stats","📊","Stats"],["lb","🏆","Board"]]
+      ${[["home","🏠","Home"],["stats","📊","Stats"],["lb","🏆","Board"]]
         .map(([v,i,l]) => `<button class="nav-btn${currentView===v?" active":""}" onclick="go('${v}')"><span class="ic">${i}</span><span class="nav-lbl">${l}</span></button>`).join("")}
     </nav>`;
 }
 
-function matchCard(nm, showCTA) {
+function matchCard(nm) {
   const t1=TEAMS[nm.team1], t2=TEAMS[nm.team2];
-  const myPred = (predictions[nm.id]||{})[currentUser?.id];
-  const dl = deadlinePast(nm);
   return `
     <div class="mc">
       <div class="ct">M${nm.no} · ${fmtDate(nm.date)} · ${nm.time} IST</div>
@@ -599,9 +525,6 @@ function matchCard(nm, showCTA) {
         </div>
       </div>
       <div class="mm"><span>📍 ${nm.venue}, ${nm.city}</span></div>
-      ${showCTA ? (!dl && !myPred ? `<button class="btn btn-p" style="margin-top:14px;" onclick="go('predict')">Make Your Predictions</button>` :
-        myPred ? `<div style="margin-top:12px"><span class="badge bg-g">Predicted: ${myPred.winner}</span></div>` :
-        `<div style="margin-top:12px"><span class="badge bg-m">Predictions closed</span></div>`) : ""}
     </div>`;
 }
 
@@ -728,8 +651,42 @@ function renderHome() {
 
     <div class="two-col">
       <div class="col-left">
-        ${matchCard(nm, true)}
+        ${matchCard(nm)}
         <div class="cd"><div class="cd-lbl">Predictions close in</div><div class="cd-time" id="cd-t">--:--:--</div></div>
+
+        ${currentUser ? (() => {
+          const myPred = (predictions[nm.id]||{})[currentUser.id];
+          const dl = deadlinePast(nm);
+          if (dl && !myPred) return `<div class="card"><p style="text-align:center;color:var(--muted);font-size:13px">Predictions closed for this match.</p></div>`;
+          if (myPred) {
+            const t = TEAMS[myPred.winner]||{};
+            return `<div class="card">
+              <div class="ct">Your Pick</div>
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+                <div class="tbadge" style="background:${t.color||"#555"}">${myPred.winner}</div>
+                <div style="font-weight:700;font-size:15px">${(t.name||myPred.winner).split(" ").slice(-1)[0]}</div>
+                <span class="badge bg-g" style="margin-left:auto">Locked In</span>
+              </div>
+              ${!dl ? `<button class="btn btn-s" onclick="editPred('${nm.id}')">Change Pick</button>` : ""}
+            </div>`;
+          }
+          if (dl) return "";
+          const t1=TEAMS[nm.team1], t2=TEAMS[nm.team2];
+          return `<div class="card">
+            <div class="ct">Pick the Winner · +${SCORING.winner.exact} pts</div>
+            <div class="tpicker">
+              <div class="toption" id="pick-${nm.team1}" onclick="pickTeam('${nm.team1}')">
+                <div class="tbadge" style="background:${t1.color};margin:0 auto 8px">${nm.team1}</div>
+                <div style="font-weight:800;font-size:13px">${t1.name.split(" ").slice(-1)[0]}</div>
+              </div>
+              <div class="toption" id="pick-${nm.team2}" onclick="pickTeam('${nm.team2}')">
+                <div class="tbadge" style="background:${t2.color};margin:0 auto 8px">${nm.team2}</div>
+                <div style="font-weight:800;font-size:13px">${t2.name.split(" ").slice(-1)[0]}</div>
+              </div>
+            </div>
+            <button class="btn btn-p" style="margin-top:12px" onclick="submitPred('${nm.id}')">Lock In Pick</button>
+          </div>`;
+        })() : `<div class="card"><p style="text-align:center;color:var(--muted);font-size:13px">Sign in to make your pick.</p></div>`}
       </div>
 
       <div class="col-right">
@@ -766,118 +723,6 @@ function renderHome() {
 
 }
 
-// ================================================================
-// PREDICT VIEW
-// ================================================================
-function renderPredict() {
-  const nm = getNextMatch();
-  const t1=TEAMS[nm.team1], t2=TEAMS[nm.team2];
-  const myPred = (predictions[nm.id]||{})[currentUser.id];
-  const dl = deadlinePast(nm);
-
-  if (dl) {
-    $root(wrapApp(`
-      <div class="hdr"><div class="hdr-title">Predictions</div><div class="hdr-badge">LOCKED</div></div>
-      ${matchCard(nm, false)}
-      <div class="card"><p style="text-align:center;color:var(--muted)">Predictions are closed for this match.</p></div>
-      ${myPred ? renderPredSummary(nm, myPred) : ""}
-    `));
-    return;
-  }
-
-  if (myPred && !myPred._editing) {
-    $root(wrapApp(`
-      <div class="hdr"><div class="hdr-title">Predictions</div><div class="hdr-badge">SUBMITTED</div></div>
-      ${matchCard(nm, false)}
-      ${renderPredSummary(nm, myPred)}
-      <div style="padding:0 16px 16px">
-        <button class="btn btn-s" onclick="editPred('${nm.id}')">Edit Prediction</button>
-      </div>
-    `));
-    return;
-  }
-
-  $root(wrapApp(`
-    <div class="hdr"><div class="hdr-title">Predictions</div><div class="hdr-badge">M${nm.no}</div></div>
-    ${matchCard(nm, false)}
-
-    <div style="padding:0 16px">
-      <!-- Winner -->
-      <div class="pred-section">
-        <div class="fl">Who wins? (+${SCORING.winner.exact} pts)</div>
-        <div class="tpicker">
-          <div class="toption" id="pick-${nm.team1}" onclick="pickTeam('${nm.team1}')">
-            <div class="tbadge" style="background:${t1.color};margin:0 auto 8px">${nm.team1}</div>
-            <div style="font-weight:800;font-size:13px">${t1.name.split(" ").slice(-1)[0]}</div>
-          </div>
-          <div class="toption" id="pick-${nm.team2}" onclick="pickTeam('${nm.team2}')">
-            <div class="tbadge" style="background:${t2.color};margin:0 auto 8px">${nm.team2}</div>
-            <div style="font-weight:800;font-size:13px">${t2.name.split(" ").slice(-1)[0]}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Player predictions -->
-      <div class="pred-section">
-        <div class="fl">Player Predictions</div>
-        <div class="fg"><label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">Highest Run Scorer (+${SCORING.topScorer.exact} pts)</label><input class="fi" id="p-topScorer" placeholder="e.g. Virat Kohli"></div>
-        <div class="fg"><label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">Best Economy Bowler (+${SCORING.bestEconomy.exact} pts)</label><input class="fi" id="p-bestEconomy" placeholder="e.g. Jasprit Bumrah"></div>
-        <div class="fg" style="margin-bottom:0"><label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">Most Wickets (+${SCORING.mostWickets.exact} pts)</label><input class="fi" id="p-mostWickets" placeholder="e.g. Rashid Khan"></div>
-      </div>
-
-      <!-- Numeric predictions -->
-      <div class="pred-section">
-        <div class="fl">Number Predictions (within range = partial pts)</div>
-        <div class="num-grid">
-          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team1} Total Runs</label><input class="fi" id="p-totalRuns_team1" type="number" placeholder="e.g. 175"></div>
-          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team2} Total Runs</label><input class="fi" id="p-totalRuns_team2" type="number" placeholder="e.g. 165"></div>
-          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team1} Powerplay</label><input class="fi" id="p-powerplay_team1" type="number" placeholder="e.g. 52"></div>
-          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team2} Powerplay</label><input class="fi" id="p-powerplay_team2" type="number" placeholder="e.g. 48"></div>
-          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Total Sixes (match)</label><input class="fi" id="p-sixes" type="number" placeholder="e.g. 14"></div>
-          <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Total Dot Balls</label><input class="fi" id="p-dotBalls" type="number" placeholder="e.g. 120"></div>
-        </div>
-      </div>
-
-      <!-- Playing XI (optional, text-based) -->
-      <div class="pred-section">
-        <div class="fl">Playing XI (optional, comma-separated)</div>
-        <div class="fg"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team1} XI</label><textarea class="fi" id="p-xi1" rows="2" placeholder="Kohli, Faf, Maxwell, ..." style="font-size:13px;resize:vertical"></textarea></div>
-        <div class="fg" style="margin-bottom:0"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">${nm.team2} XI</label><textarea class="fi" id="p-xi2" rows="2" placeholder="Abhishek, Head, Cummins, ..." style="font-size:13px;resize:vertical"></textarea></div>
-      </div>
-
-      <!-- Scoring rules -->
-      <div class="pred-section" style="background:rgba(255,107,0,0.06)">
-        <div class="fl">Scoring Rules</div>
-        <div class="pts-row"><span>Correct winner</span><span class="pts-v">+3 pts</span></div>
-        <div class="pts-row"><span>Correct top scorer / economy / wickets</span><span class="pts-v">+4 pts each</span></div>
-        <div class="pts-row"><span>Playing XI (8+ correct per team)</span><span class="pts-v">+3-5 pts</span></div>
-        <div class="pts-row"><span>Numeric predictions (exact)</span><span class="pts-v">+3 pts</span></div>
-        <div class="pts-row"><span>Numeric predictions (close)</span><span class="pts-v">+1-2 pts</span></div>
-        <div class="pts-row"><span>3+ winner streak bonus</span><span class="pts-v">1.5x</span></div>
-      </div>
-
-      <button class="btn btn-p" style="margin-bottom:16px" onclick="submitPred('${nm.id}')">Submit Prediction</button>
-    </div>
-  `));
-}
-
-function renderPredSummary(m, pred) {
-  return `<div class="card">
-    <div class="ct">Your Prediction</div>
-    <div class="pts-row"><span>Winner</span><span style="font-weight:700">${pred.winner || "—"}</span></div>
-    <div class="pts-row"><span>Top Scorer</span><span>${pred.topScorer || "—"}</span></div>
-    <div class="pts-row"><span>Best Economy</span><span>${pred.bestEconomy || "—"}</span></div>
-    <div class="pts-row"><span>Most Wickets</span><span>${pred.mostWickets || "—"}</span></div>
-    <div class="pts-row"><span>${m.team1} Runs</span><span>${pred.totalRuns_team1 || "—"}</span></div>
-    <div class="pts-row"><span>${m.team2} Runs</span><span>${pred.totalRuns_team2 || "—"}</span></div>
-    <div class="pts-row"><span>${m.team1} Powerplay</span><span>${pred.powerplay_team1 || "—"}</span></div>
-    <div class="pts-row"><span>${m.team2} Powerplay</span><span>${pred.powerplay_team2 || "—"}</span></div>
-    <div class="pts-row"><span>Sixes</span><span>${pred.sixes || "—"}</span></div>
-    <div class="pts-row"><span>Dot Balls</span><span>${pred.dotBalls || "—"}</span></div>
-    ${pred.playingXI_team1?.length ? `<div class="pts-row"><span>${m.team1} XI</span><span style="font-size:11px">${pred.playingXI_team1.join(", ")}</span></div>` : ""}
-    ${pred.playingXI_team2?.length ? `<div class="pts-row"><span>${m.team2} XI</span><span style="font-size:11px">${pred.playingXI_team2.join(", ")}</span></div>` : ""}
-  </div>`;
-}
 
 function pickTeam(tid) {
   selectedTeam = tid;
@@ -887,35 +732,12 @@ function pickTeam(tid) {
 
 function submitPred(mid) {
   if (!selectedTeam) { toast("Pick a winner first!"); return; }
-  const g = id => document.getElementById(id)?.value?.trim() || "";
-  const parseXI = id => {
-    const v = document.getElementById(id)?.value?.trim();
-    if (!v) return [];
-    return v.split(",").map(s=>s.trim()).filter(Boolean);
-  };
-
-  const pred = {
-    winner: selectedTeam,
-    topScorer: g("p-topScorer"),
-    bestEconomy: g("p-bestEconomy"),
-    mostWickets: g("p-mostWickets"),
-    totalRuns_team1: g("p-totalRuns_team1"),
-    totalRuns_team2: g("p-totalRuns_team2"),
-    powerplay_team1: g("p-powerplay_team1"),
-    powerplay_team2: g("p-powerplay_team2"),
-    sixes: g("p-sixes"),
-    dotBalls: g("p-dotBalls"),
-    playingXI_team1: parseXI("p-xi1"),
-    playingXI_team2: parseXI("p-xi2"),
-    ts: Date.now(),
-  };
-
-  fbSet(`predictions/${mid}/${currentUser.id}`, pred)
-    .then(()=>{ selectedTeam=null; toast("Prediction locked in!"); go("home"); });
+  fbSet(`predictions/${mid}/${currentUser.id}`, { winner: selectedTeam, ts: Date.now() })
+    .then(()=>{ selectedTeam=null; toast("Pick locked in!"); renderHome(); });
 }
 
 function editPred(mid) {
-  fbDel(`predictions/${mid}/${currentUser.id}`).then(()=>{ selectedTeam=null; renderPredict(); });
+  fbDel(`predictions/${mid}/${currentUser.id}`).then(()=>{ selectedTeam=null; renderHome(); });
 }
 
 // ================================================================
@@ -1008,16 +830,13 @@ function renderLeaderboard() {
           <div class="pts-row"><span>Group</span><span style="font-weight:700">${groupInfo?.name||"IPL Predictor"}</span></div>
           <div class="pts-row"><span>Members</span><span style="font-weight:700">${memberCount}</span></div>
           <div class="pts-row"><span>Matches played</span><span style="font-weight:700">${played}</span></div>
-          <div class="pts-row"><span>Max pts/match</span><span style="font-weight:700">~37</span></div>
+          <div class="pts-row"><span>Max pts/match</span><span style="font-weight:700">5</span></div>
         </div>
 
         <div class="card">
           <div class="ct">Scoring Rules</div>
           <div class="pts-row"><span>Correct winner</span><span class="pts-v">+3 pts</span></div>
-          <div class="pts-row"><span>Correct top scorer / economy / wickets</span><span class="pts-v">+4 pts each</span></div>
-          <div class="pts-row"><span>Playing XI (per team, 8+ correct)</span><span class="pts-v">+3-5 pts</span></div>
-          <div class="pts-row"><span>Numeric (exact / close / near)</span><span class="pts-v">+3 / +2 / +1</span></div>
-          <div class="pts-row"><span>Winner streak bonus (3+)</span><span class="pts-v">1.5x</span></div>
+          <div class="pts-row"><span>3+ win streak bonus</span><span class="pts-v">1.5x</span></div>
         </div>
       </div>
     </div>
@@ -1097,19 +916,6 @@ function renderAdminPanel() {
       <div class="fg"><label class="fl">Winner</label>
         <select class="fi" id="adm-w"><option value="">-- Pick winner --</option></select>
       </div>
-      <div class="fg"><label class="fl">Highest Run Scorer</label><input class="fi" id="adm-topScorer" placeholder="Player name"></div>
-      <div class="fg"><label class="fl">Best Economy Bowler</label><input class="fi" id="adm-bestEconomy" placeholder="Player name"></div>
-      <div class="fg"><label class="fl">Most Wickets</label><input class="fi" id="adm-mostWickets" placeholder="Player name"></div>
-      <div class="num-grid">
-        <div class="fg"><label class="fl" id="adm-tr1-lbl">Team1 Runs</label><input class="fi" id="adm-tr1" type="number" placeholder="175"></div>
-        <div class="fg"><label class="fl" id="adm-tr2-lbl">Team2 Runs</label><input class="fi" id="adm-tr2" type="number" placeholder="165"></div>
-        <div class="fg"><label class="fl" id="adm-pp1-lbl">Team1 PP</label><input class="fi" id="adm-pp1" type="number" placeholder="52"></div>
-        <div class="fg"><label class="fl" id="adm-pp2-lbl">Team2 PP</label><input class="fi" id="adm-pp2" type="number" placeholder="48"></div>
-        <div class="fg"><label class="fl">Total Sixes</label><input class="fi" id="adm-sixes" type="number" placeholder="14"></div>
-        <div class="fg"><label class="fl">Total Dot Balls</label><input class="fi" id="adm-dotBalls" type="number" placeholder="120"></div>
-      </div>
-      <div class="fg"><label class="fl" id="adm-xi1-lbl">Team1 Playing XI (comma-separated)</label><textarea class="fi" id="adm-xi1" rows="2" placeholder="Player1, Player2, ..." style="font-size:13px"></textarea></div>
-      <div class="fg"><label class="fl" id="adm-xi2-lbl">Team2 Playing XI (comma-separated)</label><textarea class="fi" id="adm-xi2" rows="2" placeholder="Player1, Player2, ..." style="font-size:13px"></textarea></div>
       <button class="btn btn-p" onclick="saveResult()">Save Result & Update Points</button>
     </div>
   `;
@@ -1121,36 +927,15 @@ function loadAdmMatch() {
   const form=document.getElementById("adm-form"); if(!form)return;
   form.style.display="block";
 
-  // Update labels
-  const setLbl = (id, txt) => { const el=document.getElementById(id); if(el) el.textContent=txt; };
-  setLbl("adm-tr1-lbl", `${m.team1} Total Runs`);
-  setLbl("adm-tr2-lbl", `${m.team2} Total Runs`);
-  setLbl("adm-pp1-lbl", `${m.team1} Powerplay`);
-  setLbl("adm-pp2-lbl", `${m.team2} Powerplay`);
-  setLbl("adm-xi1-lbl", `${m.team1} Playing XI`);
-  setLbl("adm-xi2-lbl", `${m.team2} Playing XI`);
-
   const ws=document.getElementById("adm-w");
   ws.innerHTML=`<option value="">-- Pick winner --</option>
     <option value="${m.team1}" ${results[mid]?.winner===m.team1?"selected":""}>${m.team1}</option>
     <option value="${m.team2}" ${results[mid]?.winner===m.team2?"selected":""}>${m.team2}</option>`;
 
-  // Pre-fill if results exist
   if(results[mid]){
     const r = results[mid];
     const setVal = (id, val) => { const el=document.getElementById(id); if(el) el.value=val||""; };
     setVal("adm-status", r.status||"completed");
-    setVal("adm-topScorer", r.topScorer);
-    setVal("adm-bestEconomy", r.bestEconomy);
-    setVal("adm-mostWickets", r.mostWickets);
-    setVal("adm-tr1", r.totalRuns_team1);
-    setVal("adm-tr2", r.totalRuns_team2);
-    setVal("adm-pp1", r.powerplay_team1);
-    setVal("adm-pp2", r.powerplay_team2);
-    setVal("adm-sixes", r.sixes);
-    setVal("adm-dotBalls", r.dotBalls);
-    setVal("adm-xi1", (r.playingXI_team1||[]).join(", "));
-    setVal("adm-xi2", (r.playingXI_team2||[]).join(", "));
   }
 }
 
@@ -1162,24 +947,7 @@ function saveResult() {
   if (!mid) { toast("Select a match!"); return; }
   if (status !== "no_result" && !winner) { toast("Select a winner!"); return; }
 
-  const g = id => document.getElementById(id)?.value?.trim()||"";
-  const parseXI = id => {
-    const v = document.getElementById(id)?.value?.trim();
-    if (!v) return [];
-    return v.split(",").map(s=>s.trim()).filter(Boolean);
-  };
-
-  const result = {
-    status, winner: winner||"",
-    topScorer: g("adm-topScorer"), bestEconomy: g("adm-bestEconomy"), mostWickets: g("adm-mostWickets"),
-    totalRuns_team1: g("adm-tr1"), totalRuns_team2: g("adm-tr2"),
-    powerplay_team1: g("adm-pp1"), powerplay_team2: g("adm-pp2"),
-    sixes: g("adm-sixes"), dotBalls: g("adm-dotBalls"),
-    playingXI_team1: parseXI("adm-xi1"), playingXI_team2: parseXI("adm-xi2"),
-    ts: Date.now(),
-  };
-
-  fbSet(`results/${mid}`, result)
+  fbSet(`results/${mid}`, { status, winner: winner||"", ts: Date.now() })
     .then(()=>{ toast("Result saved! Points updated."); renderAdmin(); });
 }
 
@@ -1359,7 +1127,6 @@ function renderView() {
   if (countdownInterval && currentView !== "home") { clearInterval(countdownInterval); countdownInterval=null; }
   switch(currentView) {
     case "home":     renderHome(); break;
-    case "predict":  renderPredict(); break;
     case "stats":    renderStats(); break;
     case "lb":       renderLeaderboard(); break;
     case "admin":    renderAdmin(); break;
