@@ -192,6 +192,9 @@
   </style>
 </head>
 <body>
+<div id="conn-status" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#b45309;color:#fff;font-size:13px;font-weight:600;padding:8px 16px;align-items:center;justify-content:center;gap:8px">
+  ⚠️ Reconnecting to Firebase… your data may be out of date
+</div>
 <div id="root"></div>
 <script>
 // ================================================================
@@ -264,6 +267,7 @@ let db = null, currentUser = null, currentView = "home";
 let groupId = null, groupInfo = null;
 let participants = {}, predictions = {}, results = {}, chatHistory = [];
 let isAdmin = false, selectedTeam = null, countdownInterval = null;
+let groupListening = false;
 
 // ================================================================
 // LOCAL STORAGE
@@ -286,6 +290,8 @@ function initFirebase(config) {
 }
 
 function listenToGroup(gid) {
+  if (groupListening && groupId === gid) return; // already listening, skip duplicate
+  groupListening = true;
   groupId = gid;
   LS.set("groupId", gid);
   const g = db.ref(`groups/${gid}`);
@@ -293,6 +299,13 @@ function listenToGroup(gid) {
   g.child("members").on("value", s => { participants = s.val()||{}; safeRender(); });
   g.child("predictions").on("value", s => { predictions = s.val()||{}; safeRender(); });
   g.child("results").on("value", s => { results = s.val()||{}; safeRender(); });
+
+  // Monitor Firebase connection state and show indicator
+  db.ref(".info/connected").on("value", s => {
+    const connected = s.val();
+    const el = document.getElementById("conn-status");
+    if (el) el.style.display = connected ? "none" : "flex";
+  });
 }
 
 function gRef(path) { return `groups/${groupId}/${path}`; }
@@ -1485,6 +1498,21 @@ async function init() {
     renderLogin();
   }
 }
+
+// Re-sync when tab comes back into focus (handles browser tab suspension)
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && db && groupId && groupId !== "demo") {
+    // Force a one-time read to catch any updates missed while tab was suspended
+    db.ref(`groups/${groupId}`).once("value", snap => {
+      const data = snap.val() || {};
+      if (data.members)     participants = data.members;
+      if (data.predictions) predictions  = data.predictions;
+      if (data.results)     results      = data.results;
+      if (data.info)        groupInfo    = data.info;
+      safeRender();
+    });
+  }
+});
 
 init();
 </script>
