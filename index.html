@@ -1355,18 +1355,14 @@ function shareResults() {
   const url = getJoinUrl();
   text += `\nNext: ${nm.team1} vs ${nm.team2} (${fmtDate(nm.date)})\nPredict now: ${url}`;
 
-  const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-  if (navigator.share) navigator.share({ title: "IPL Predictor Results", text });
-  else window.open(waUrl, "_blank");
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
 }
 
 function shareReminder() {
   const nm = getNextMatch();
   const url = getJoinUrl();
   const text = `🏏 ${nm.team1} vs ${nm.team2} — ${fmtDate(nm.date)} at ${nm.time} IST\n\nDon't forget to submit your predictions!\n\n${url}`;
-  const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-  if (navigator.share) navigator.share({ title: "IPL Predictor Reminder", text });
-  else window.open(waUrl, "_blank");
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
 }
 
 // ================================================================
