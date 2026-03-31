@@ -1224,7 +1224,8 @@ async function askQ(q) {
   const apiKey=LS.get("claudeKey")||"";
 
   if (!apiKey) {
-    chatHistory.push({role:"bot",content:"Add your Claude API key in Settings to enable AI analysis."});
+    const fallback = `I need a Claude API key to give you AI-powered analysis.\n\nIn the meantime, here's what I know about ${nm.city}:\n${p.note||"No pitch data available."}\n\nBatting: ${p.bat}/100 · Spin: ${p.spin}/100 · Pace: ${p.pace}/100 · Dew: ${p.dew}/100\n\n💡 Get a free key at **console.anthropic.com** and add it via the ⚙️ Settings page.`;
+    chatHistory.push({role:"bot",content:fallback});
     renderHome(); return;
   }
 
@@ -1311,6 +1312,15 @@ function generateGroupLink() {
   else window.open(waUrl, "_blank");
 }
 
+function getJoinUrl() {
+  const cfg = LS.get("fbConfig") || {};
+  const { apiKey, databaseURL, projectId } = cfg;
+  const gid = LS.get("groupId");
+  if (!apiKey || !databaseURL || !projectId) return `${location.origin}${location.pathname}`;
+  const encoded = btoa(JSON.stringify({ apiKey, databaseURL, projectId, groupId: gid }));
+  return `${location.origin}${location.pathname}?join=${encoded}`;
+}
+
 function shareResults() {
   const board = leaderboard().slice(0, 5);
   const medals = ["🥇","🥈","🥉"];
@@ -1329,7 +1339,7 @@ function shareResults() {
   text += `📊 Leaderboard:\n`;
   board.forEach((p,i) => { text += `${i<3?medals[i]:i+1+"."}  ${p.name} — ${p.total} pts\n`; });
   const nm = getNextMatch();
-  const url = `${location.origin}${location.pathname}`;
+  const url = getJoinUrl();
   text += `\nNext: ${nm.team1} vs ${nm.team2} (${fmtDate(nm.date)})\nPredict now: ${url}`;
 
   const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -1339,7 +1349,7 @@ function shareResults() {
 
 function shareReminder() {
   const nm = getNextMatch();
-  const url = `${location.origin}${location.pathname}`;
+  const url = getJoinUrl();
   const text = `🏏 ${nm.team1} vs ${nm.team2} — ${fmtDate(nm.date)} at ${nm.time} IST\n\nDon't forget to submit your predictions!\n\n${url}`;
   const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
   if (navigator.share) navigator.share({ title: "IPL Predictor Reminder", text });
